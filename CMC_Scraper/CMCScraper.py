@@ -63,7 +63,6 @@ class CMCScraper:
         self.crypto_price_change_list = []
         
         self.daily_records_combined_list = []
-        
 
         self.image_list = []
 
@@ -95,8 +94,16 @@ class CMCScraper:
         
         self.record_uuid_dict = {}
 
+        self.name_list_and_images_one_day = []
+
+        self.name_list_and_images_all = []
+
+        self.image = str
+
+        self.crypto_name = str
+
         
-    def daterange(self, start_date, end_date, frequency):
+    def __daterange(self, start_date, end_date, frequency):
         '''This method generates a range of dates between 2 given dates which is converted to a string list.
         
         syntax: daterange(start_date, end_date, frequency)
@@ -114,11 +121,10 @@ class CMCScraper:
         date_list_all = date_list_unformatted.strftime('%Y%m%d/')
         #slice based on the required frequency of dates
         date_list = date_list_all[::frequency]
-        print(date_list)
         return date_list
         
 
-    def create_url_list_with_date_permalinks(self, root_url, date_list):
+    def __create_url_list_with_date_permalinks(self, root_url, date_list):
         '''Method for concatenating list of permalinks to given url, returning a list of unique urls containing url and permalink.
         
         syntax: create_url_list_with_date_permalinks(root_url, date_list)
@@ -132,7 +138,6 @@ class CMCScraper:
         for url_extension in date_list:
             #concatenate the root_url with the url permalink
             url_instance = root_url + str(url_extension)
-            print(url_instance)
             #append into list
             final_url_list.append(url_instance)
         return final_url_list
@@ -150,13 +155,13 @@ class CMCScraper:
         frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
         root_url argument = the url root address with which to concatenate the permalink list'''
         
-        date_list = self.daterange(start_date, end_date, frequency)
-        final_url = self.create_url_list_with_date_permalinks(root_url, date_list)
+        date_list = self.__daterange(start_date, end_date, frequency)
+        final_url = self.__create_url_list_with_date_permalinks(root_url, date_list)
         return final_url
         
 
-    def get_image_src_list_from_webpage(self, url):
-        '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
+    def __get_image_src_list_from_webpage(self, url):
+        '''Thi__s method generates a list of URLS corresponding to data from a webpage and retrieves only .png
         files. This will only get the first 10 images since the rest of the images are dynamically accessed.
         
         syntax: get_image_src_list_from_webpage(url)
@@ -164,32 +169,60 @@ class CMCScraper:
         Takes 1 argument (likely inherited from url_list in parent method)
         url argument = the webpage url to scrape and retrieve the images
          '''
+        #name_list_and_images_one_record = []
+        
         #request webpage
         webpage = requests.get(url)
         
         #parse the html
         soup = BeautifulSoup(webpage.text, 'html.parser')
 
-        #create a variable for the table rows (tr)
-        images = soup.find_all('img')
         
-        # iterate through every src and extract only the src text
-        for image in images:
-            #strips the src url only
-            image = image['src']
-            #ensure that only .png files are saved 
-            if '.png' not in image:
-                pass
-            else:
-                #appends stripped url to list
-                self.image_list.append(image)
-        #length of image_list to be used as an assertion
-        self.one_day_image_list_length = len(self.image_list)  
+        #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
+        image_table_rows = soup.find_all('tr', attrs={'class':'cmc-table-row'})
         
+        for crypto_name_area in image_table_rows:
+            
+            
+            name_column = crypto_name_area.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__name'})
+                #Prevents None error if the loop conitnues further than the available rows for scraping 
+            if name_column == None:
+                    break
 
-    #saves an image in a particular file, 
+                #find the column within the row and strip the text
+            self.crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
+            #append names into list   
+            
+            # find images in same row
+            self.image = name_column.find('img')
+            if self.image == None:
+                    self.image = 'None retrieved'
+            #find only src
+            else: self.image = self.image['src']
+
+            
+            #ensure that only .png files are saved 
+            if '.png' not in self.image:
+                pass
+            
+            #prevent rescraping
+            elif self.crypto_name in self.name_list_and_images_all:
+                pass
+            
+            #appends stripped url to list
+            else:
+                self.image_list.append(self.image)
+                name_list_and_images_one_record =[self.image, self.crypto_name]
+                self.name_list_and_images_one_day.append(name_list_and_images_one_record)
+            
+            #self.name_list_and_images.append(name_list_and_images_one_record)
+        #length of image_list to be used as an assertion
+        self.one_day_image_list_length = len(self.image_list) 
+        self.name_list_and_images_all.append(self.name_list_and_images_one_day)
+        print(self.name_list_and_images_all)
+        
     
-    def save_images_from_webpage(self, path):
+    def __save_images_from_webpage(self, path):
         '''This method retrieves and saves the images generated in method 'get_image_src_list_from_webpage' to an indicated
         path
         
@@ -213,6 +246,7 @@ class CMCScraper:
                 urllib.request.urlretrieve(image, path)
             #counts the number of image downloads
             self.number_of_downloads = i
+
         
         
     def save_images_from_multiple_webpages(self, url_list, num_pages, path):
@@ -227,10 +261,11 @@ class CMCScraper:
         '''
         #Looping through the 2 methods
         for url in url_list[:num_pages]:
-            self.get_image_src_list_from_webpage(url)
-            self.save_images_from_webpage(path)
+            
+            self.__get_image_src_list_from_webpage(url)
+            self.__save_images_from_webpage(path)
         
-    def scrape_items_from_row(self):   
+    def __scrape_items_from_row(self):   
         ''' This function scrapes the data from one of the cryptocurrency rows generated in the function 'get_crypto_rows'. 
         
         In this function, the crypto name, price, ticker, market cap and circulating supply are stored in individual lists. Each value, 
@@ -249,7 +284,7 @@ class CMCScraper:
     #store the name of the coin as a variable by finding td element (column) 
 
             name_column = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__name'})
-            #Prevents None error if the loop conitnues further than the available number of iterations 
+            #Prevents None error if the loop conitnues further than the available rows for scraping 
             if name_column == None:
                 break
             
@@ -298,7 +333,7 @@ class CMCScraper:
                 break
   
     
-    def get_crypto_rows(self, url_list, num_pages):
+    def __get_crypto_rows(self, url_list, num_pages):
         '''This method scrapes each row of data correlating to the associated cryptocurrency.
         
         Example use case: Scraping a row of Bitcoin data  from a particular webpage (date). The data included in a 
@@ -310,71 +345,45 @@ class CMCScraper:
         num_pages argument = number of webpages to iterate through from the url_list
         url_list argument = the list with urls to iterate through
           '''
-
-         
-
-        #creating lists for each daily entry
-        
+        #creating count for each iteration below
         count = 0
-
+        #iterates through the url_list from create_url_final, limited by parameter 'num_pages' which is the number of pages 
         for url in url_list[:num_pages]:
-            
-        #creating a data frame for later
-            
+            #bringing in url_tag from __scrape_items_from_row method
             self.url_tag = url
-            
-            df = pd.DataFrame()
-        
             #request webpage
             webpage = requests.get(url)
-        
             #parse the html
             soup = BeautifulSoup(webpage.text, 'html.parser')
-
             #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
             self.tr = soup.find_all('tr', attrs={'class':'cmc-table-row'})
-
             #Gets the number of records per page, useful for scraping all records 
             self.tr_length = len(self.tr)
-
             #call the function iteratively
-            self.scrape_items_from_row()
+            self.__scrape_items_from_row()
+            #increase the count above for each iteration
             count += 1
-            print('1 day')
-            
-            
-        self.total_crypto_url_tag_entries = len(self.crypto_url_tag_list)
-        
-        self.total_rank_entries = len(self.crypto_rank_list)
-        
-        self.total_name_entries = len(self.crypto_name_list)
-        
-        self.total_CS_entries = len(self.crypto_circulating_supply_list)
-       
-        self.total_MK_entries = len(self.crypto_market_cap_list)
-        
-        self.total_crypto_price_entries = (len(self.crypto_price_list))
-        
-        self.total_CT_entries = (len(self.crypto_ticker_list))
 
+        #getting lengths of lists for assertions and checks later dowjn the line 
+        self.total_crypto_url_tag_entries = len(self.crypto_url_tag_list)
+        self.total_rank_entries = len(self.crypto_rank_list)
+        self.total_name_entries = len(self.crypto_name_list)
+        self.total_CS_entries = len(self.crypto_circulating_supply_list)
+        self.total_MK_entries = len(self.crypto_market_cap_list)
+        self.total_crypto_price_entries = (len(self.crypto_price_list))
+        self.total_CT_entries = (len(self.crypto_ticker_list))
         self.total_price_change_entries = len(self.crypto_price_change_list)
-      
             
-            
-        
+        #Getting sum total of the entries then dividing by the number of categories to get total and average entries, respectively
         self.total_entries = self.total_crypto_url_tag_entries + self.total_rank_entries + self.total_name_entries + self.total_CS_entries + self.total_MK_entries + self.total_crypto_price_entries + self.total_CT_entries + self.total_price_change_entries
         self.average_entries = int(self.total_entries / 8)
-            
-            
 
         assert self.average_entries == self.total_CT_entries, "The total_name_entries is not equal to total_CT_entries"
             
         return self.crypto_url_tag_list, self.crypto_rank_list, self.crypto_name_list, self.crypto_market_cap_list, self.crypto_price_list,  self.crypto_circulating_supply_list, self.crypto_ticker_list, self.crypto_price_change_list
             
-    
-        
-            
-    def daily_record_concatenater(self):    
+   
+    def __daily_record_concatenater(self):    
         '''This code packages each record into a list: for example BTC price from a particular date. 
         
         The generated lists can then be added to a dictionary. This function could be broadly applicable
@@ -384,16 +393,21 @@ class CMCScraper:
         
         requires 0 arguments
         '''
-            
         for i in range(len(self.crypto_url_tag_list)):
             self.daily_records_combined_list.append([self.crypto_url_tag_list[i], self.crypto_rank_list[i], self.crypto_name_list[i],self.crypto_market_cap_list[i],self.crypto_price_list[i],self.crypto_circulating_supply_list[i],self.crypto_ticker_list[i], self.crypto_price_change_list[i]]) 
         self.total_entries_appended = len(self.daily_records_combined_list)
         return self.daily_records_combined_list  
     
+    
     def get_crypto(self, url_list, num_pages):
-        self.get_crypto_rows(url_list, num_pages)
-        all_scraped_data_list = self.daily_record_concatenater()
+        if self.url_tag in self.crypto_url_tag_list:
+            print('crypto_data_rescrape attempt')
+            pass
+        else:
+            self.__get_crypto_rows(url_list, num_pages)
+            all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
+        print(all_scraped_data_list)
         return all_scraped_data_list 
 
     
@@ -426,6 +440,7 @@ class CMCScraper:
         self.record_uuid_dict = dict(zip(uuid_list, record_list))
         return self.record_uuid_dict
 
+    
     def turn_dictionary_into_json_file(self, path, file_to_turn_into_json):
         '''This method converts a file to a JSON file and saves it to a specified path.
         
@@ -436,6 +451,7 @@ class CMCScraper:
         file_to_turn_into_json argument = the file to be stored as a json file'''
         with open(path, 'w') as fp:
             json.dump(file_to_turn_into_json, fp)
+    
     
     def crypto_data_UUID_list_dictionary(self, record_list:list, path):
         Dictionary = self.UUID_dictionary(record_list)
@@ -491,14 +507,14 @@ class CMCScraper:
             return False
         return True
 
-    def upload_folder_to_S3v(self, path, bucket):
+    def upload_folder_to_S3(self, path, bucket):
         s3_client = boto3.client('s3')
         for root,dirs,files in os.walk(path):
             for file in files:
                 s3_client.upload_file(os.path.join(root, file), bucket, file)
 
 
-    def sql(self):
+    def upload_table_from_csv_to_RDS(self):
         
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
@@ -518,12 +534,14 @@ if __name__ =="__main__":
     
 
     yolo = CMCScraper()
-    #final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
-    #yolo.save_images_from_multiple_webpages(final_url, len(final_url), r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)")
-    #crypto_data_list = yolo.get_crypto(final_url, len(final_url))
-    yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
+    final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
+    #get_images_one_day = yolo.get_image_src_list_from_webpage('https://coinmarketcap.com/historical/20130616/')
+    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 50, r"C:\Users\marko\OneDrive\Desktop\image_data")
+    crypto_data_list = yolo.get_crypto(final_url, 10)
+    #yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
     #yolo.sql()
-    yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
+    #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
+    #dictionary_for_images = yolo.crypto_data_UUID_list_dictionary(, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json"
     #yolo.upload_files(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 's3://mofirstbucket1/CMC data upload 1/', 'CMCdata upload 1/')
     #yolo.upload_file(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\1.png", 'cmc-bucket-mo')
     #upload_folder(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 'cmc-bucket-mo')
