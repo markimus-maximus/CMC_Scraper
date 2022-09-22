@@ -20,6 +20,7 @@ import boto3
 import psycopg2
 from sqlalchemy import create_engine
 from sqlalchemy import inspect
+import itertools
 
 
 
@@ -102,6 +103,11 @@ class CMCScraper:
 
         self.crypto_name = str
 
+        self.image_dictionary = {}
+
+        self.name_record_list = []
+        self.image_record_list = []
+
         
     def __daterange(self, start_date, end_date, frequency):
         '''This method generates a range of dates between 2 given dates which is converted to a string list.
@@ -161,15 +167,15 @@ class CMCScraper:
         
 
     def __get_image_src_list_from_webpage(self, url):
-        '''Thi__s method generates a list of URLS corresponding to data from a webpage and retrieves only .png
+        '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
         files. This will only get the first 10 images since the rest of the images are dynamically accessed.
         
         syntax: get_image_src_list_from_webpage(url)
         
         Takes 1 argument (likely inherited from url_list in parent method)
         url argument = the webpage url to scrape and retrieve the images
-         '''
-        #name_list_and_images_one_record = []
+        '''
+        
         
         #request webpage
         webpage = requests.get(url)
@@ -183,45 +189,42 @@ class CMCScraper:
         
         for crypto_name_area in image_table_rows:
             
-            
             name_column = crypto_name_area.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__name'})
                 #Prevents None error if the loop conitnues further than the available rows for scraping 
             if name_column == None:
                     break
 
                 #find the column within the row and strip the text
-            self.crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
+            crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
             #append names into list   
-            
+            self.image_name_list.append(crypto_name)
+            print(self.crypto_name)
             # find images in same row
-            self.image = name_column.find('img')
-            if self.image == None:
-                    self.image = 'None retrieved'
-            #find only src
-            else: self.image = self.image['src']
+            image = name_column.find('img')
+            #extract only src
+            if image == None:
+                break
+            image = image['src']
+            print(image)
 
+            crypto_name_and_image_single = [crypto_name, image]
+            if crypto_name_and_image_single not in self.name_and_images_combined_list:
+                self.name_and_images_combined_list.append(crypto_name_and_image_single)
             
-            #ensure that only .png files are saved 
-            if '.png' not in self.image:
-                pass
-            
-            #prevent rescraping
-            elif self.crypto_name in self.name_list_and_images_all:
-                pass
-            
-            #appends stripped url to list
-            else:
-                self.image_list.append(self.image)
-                name_list_and_images_one_record =[self.image, self.crypto_name]
-                self.name_list_and_images_one_day.append(name_list_and_images_one_record)
-            
-            #self.name_list_and_images.append(name_list_and_images_one_record)
+            #prevent_rescrape of image_list elements
+            if image not in self.image_list:
+                self.image_list.append(image)
+                
+        print(self.image_list)
+        print(self.name_and_images_combined_list)
+
         #length of image_list to be used as an assertion
         self.one_day_image_list_length = len(self.image_list) 
-        self.name_list_and_images_all.append(self.name_list_and_images_one_day)
-        print(self.name_list_and_images_all)
+        #append daily records to the master list
         
-    
+        #print(self.name_list_and_images_all)
+        
+
     def __save_images_from_webpage(self, path):
         '''This method retrieves and saves the images generated in method 'get_image_src_list_from_webpage' to an indicated
         path
@@ -261,9 +264,10 @@ class CMCScraper:
         '''
         #Looping through the 2 methods
         for url in url_list[:num_pages]:
-            
             self.__get_image_src_list_from_webpage(url)
-            self.__save_images_from_webpage(path)
+        self.__prevent_rescrape()
+        self.__save_images_from_webpage(path)
+        return self.name_and_images_combined_list
         
     def __scrape_items_from_row(self):   
         ''' This function scrapes the data from one of the cryptocurrency rows generated in the function 'get_crypto_rows'. 
@@ -402,8 +406,8 @@ class CMCScraper:
     def get_crypto(self, url_list, num_pages):
         if self.url_tag in self.crypto_url_tag_list:
             print('crypto_data_rescrape attempt')
-            pass
-        else:
+            a = True
+        if a is not True:
             self.__get_crypto_rows(url_list, num_pages)
             all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
@@ -418,7 +422,7 @@ class CMCScraper:
         return crypto_data_frame
 
     
-    def UUID_dictionary(self, record_list:list):
+    def UUID_dictionary(self, record_list):
         ''' 
         This method generates UUIDs for every record in the method attribute list and stores in a list, before concatenating the
         UUID with a list to generate a dictionary.
@@ -453,7 +457,7 @@ class CMCScraper:
             json.dump(file_to_turn_into_json, fp)
     
     
-    def crypto_data_UUID_list_dictionary(self, record_list:list, path):
+    def crypto_data_UUID_list_dictionary(self, record_list, path):
         Dictionary = self.UUID_dictionary(record_list)
         self.turn_dictionary_into_json_file(path, self.record_uuid_dict)
         return Dictionary
@@ -531,17 +535,14 @@ class CMCScraper:
         self.dataframe.to_sql('crypto_dataset', engine, if_exists='replace')
 
 if __name__ =="__main__":
-    
-
     yolo = CMCScraper()
-    final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
-    #get_images_one_day = yolo.get_image_src_list_from_webpage('https://coinmarketcap.com/historical/20130616/')
-    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 50, r"C:\Users\marko\OneDrive\Desktop\image_data")
-    crypto_data_list = yolo.get_crypto(final_url, 10)
+    #final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
+    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
+    #crypto_data_list = yolo.get_crypto(final_url, len(final))
     #yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
     #yolo.sql()
     #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
-    #dictionary_for_images = yolo.crypto_data_UUID_list_dictionary(, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json"
+    #yolo.crypto_data_UUID_list_dictionary(get_all_images, r"C:\Users\marko\DS Projects\Data\image_dict.json")
     #yolo.upload_files(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 's3://mofirstbucket1/CMC data upload 1/', 'CMCdata upload 1/')
     #yolo.upload_file(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\1.png", 'cmc-bucket-mo')
-    #upload_folder(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 'cmc-bucket-mo')
+    yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data", 'cmc-bucket-mo')
