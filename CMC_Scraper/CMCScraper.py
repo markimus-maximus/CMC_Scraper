@@ -99,17 +99,20 @@ class CMCScraper:
 
         self.name_list_and_images_all = []
 
+        self.name_and_images_combined_list = []
+
         self.image = str
 
         self.crypto_name = str
 
         self.image_dictionary = {}
 
-        self.name_record_list = []
+        self.image_name_list = []
+        
         self.image_record_list = []
 
         
-    def __daterange(self, start_date, end_date, frequency):
+    def daterange(self, start_date, end_date, frequency):
         '''This method generates a range of dates between 2 given dates which is converted to a string list.
         
         syntax: daterange(start_date, end_date, frequency)
@@ -161,7 +164,7 @@ class CMCScraper:
         frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
         root_url argument = the url root address with which to concatenate the permalink list'''
         
-        date_list = self.__daterange(start_date, end_date, frequency)
+        date_list = self.daterange(start_date, end_date, frequency)
         final_url = self.__create_url_list_with_date_permalinks(root_url, date_list)
         return final_url
         
@@ -198,15 +201,14 @@ class CMCScraper:
             crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
             #append names into list   
             self.image_name_list.append(crypto_name)
-            print(self.crypto_name)
             # find images in same row
             image = name_column.find('img')
-            #extract only src
+            #Prevents iterating too far and returning none
             if image == None:
                 break
+            #extract only src
             image = image['src']
-            print(image)
-
+            #pairs the name and image src scraped from the same row to generate a "friendly" name tag
             crypto_name_and_image_single = [crypto_name, image]
             if crypto_name_and_image_single not in self.name_and_images_combined_list:
                 self.name_and_images_combined_list.append(crypto_name_and_image_single)
@@ -215,8 +217,7 @@ class CMCScraper:
             if image not in self.image_list:
                 self.image_list.append(image)
                 
-        print(self.image_list)
-        print(self.name_and_images_combined_list)
+        
 
         #length of image_list to be used as an assertion
         self.one_day_image_list_length = len(self.image_list) 
@@ -262,12 +263,12 @@ class CMCScraper:
         num_pages argument= The number of pages which are iterated through 
         path argument= The folder path for saving the first document once retrieved (the file name is modified for every unique image). 
         '''
-        #Looping through the 2 methods
+        #Looping through the method which scrapes the images src and name for given number of pages
         for url in url_list[:num_pages]:
             self.__get_image_src_list_from_webpage(url)
-        self.__prevent_rescrape()
+        #After all is scraped, the images are downloaded and saved in folder with path 
         self.__save_images_from_webpage(path)
-        return self.name_and_images_combined_list
+        return self.image_list
         
     def __scrape_items_from_row(self):   
         ''' This function scrapes the data from one of the cryptocurrency rows generated in the function 'get_crypto_rows'. 
@@ -397,6 +398,7 @@ class CMCScraper:
         
         requires 0 arguments
         '''
+        #iterates for the number of elements in url_tag_list
         for i in range(len(self.crypto_url_tag_list)):
             self.daily_records_combined_list.append([self.crypto_url_tag_list[i], self.crypto_rank_list[i], self.crypto_name_list[i],self.crypto_market_cap_list[i],self.crypto_price_list[i],self.crypto_circulating_supply_list[i],self.crypto_ticker_list[i], self.crypto_price_change_list[i]]) 
         self.total_entries_appended = len(self.daily_records_combined_list)
@@ -404,19 +406,14 @@ class CMCScraper:
     
     
     def get_crypto(self, url_list, num_pages):
-        if self.url_tag in self.crypto_url_tag_list:
-            print('crypto_data_rescrape attempt')
-            a = True
-        if a is not True:
-            self.__get_crypto_rows(url_list, num_pages)
-            all_scraped_data_list = self.__daily_record_concatenater()
+        self.__get_crypto_rows(url_list, num_pages)
+        all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
-        print(all_scraped_data_list)
         return all_scraped_data_list 
 
     
-    def create_table_and_save_locally(self, concatenated_list, path):
-        crypto_data_frame = pd.DataFrame.from_records(concatenated_list, columns=["source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
+    def create_dataframe_and_save_locally(self, list_of_lists_for_table, path):
+        crypto_data_frame = pd.DataFrame.from_records(list_of_lists_for_table, columns=["source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
         print(crypto_data_frame)
         crypto_data_frame.to_csv(path_or_buf=path)
         return crypto_data_frame
@@ -461,33 +458,6 @@ class CMCScraper:
         Dictionary = self.UUID_dictionary(record_list)
         self.turn_dictionary_into_json_file(path, self.record_uuid_dict)
         return Dictionary
-
-    # def upload_files(self, 
-    #                 my_path, 
-    #                 bucket_name, 
-    #                 S3_name=None):
-    #     """Upload a file to an S3 bucket
-
-    #     :param file_name: File to upload
-    #     :param bucket: Bucket to upload to
-    #     :param object_name: S3 object name. If not specified then file_name is used
-    #     :return: True if file was uploaded, else False
-    #     """
-           
-    #     uploaded_files = [f for f in listdir(my_path) if isfile(join(my_path, f))]   
-    #     #print(uploaded_files)
-    #     #     If S3 object_name was not specified, use my_path
-    #     if S3_name is None:
-    #         S3_name = os.path.basename(my_path)
-
-    #     # Upload the files
-    #     s3_client = boto3.client('s3')
-    #     try:
-    #         response = s3_client.upload_file(uploaded_files, bucket_name, S3_name)
-    #     except ClientError as e:
-    #         logging.error(e)
-    #         return False
-    #     return True
 
     def upload_file_to_s3(self, file_name, bucket, object_name=None):
         """Upload a file to an S3 bucket
@@ -536,13 +506,13 @@ class CMCScraper:
 
 if __name__ =="__main__":
     yolo = CMCScraper()
-    #final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
-    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
-    #crypto_data_list = yolo.get_crypto(final_url, len(final))
+    final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
+    get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
+    #crypto_data_list = yolo.get_crypto(final_url, 10)
     #yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
     #yolo.sql()
     #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
     #yolo.crypto_data_UUID_list_dictionary(get_all_images, r"C:\Users\marko\DS Projects\Data\image_dict.json")
     #yolo.upload_files(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 's3://mofirstbucket1/CMC data upload 1/', 'CMCdata upload 1/')
     #yolo.upload_file(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\1.png", 'cmc-bucket-mo')
-    yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data", 'cmc-bucket-mo')
+    #yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data", 'cmc-bucket-mo')
