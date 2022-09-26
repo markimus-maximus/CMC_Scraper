@@ -14,12 +14,13 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 import glob
+import boto3
 
 
 class CMCScraperTestCase(unittest.TestCase):
      
 
-    @unittest.skip
+    #@unittest.skip
     def test_create_url_list_final(self):
         #Initialise the class
         obj_scraper = CMCScraper()
@@ -96,7 +97,7 @@ class CMCScraperTestCase(unittest.TestCase):
         self.assertEqual(obj_scraper.average_entries, obj_scraper.total_name_entries, obj_scraper.total_CT_entries)
         #checks that the resulting list of each  concatenated record (e.g. BTC of a particular date) matches the average number of entries for each category 
         self.assertEqual(obj_scraper.total_entries_appended, obj_scraper.average_entries)
-        #can't convert a list straight to a set so first converting to a tuple (immutable/hashable data type). Need the tuple(tuple) approach as converting a list of lists
+        #can't convert a list straight to a set so first converting to a tuple (tuple is immutable/hashable data type). Need the tuple(tuple) approach as converting a list of lists
         get_crypto_tuple = tuple(tuple(sub) for sub in get_crypto)
         #Convert tuple to a set 
         get_crypto_set = set(get_crypto_tuple)
@@ -142,7 +143,7 @@ class CMCScraperTestCase(unittest.TestCase):
     
     @given(st.integers(min_value=1, max_value=30))
     @settings(max_examples=4, deadline=None)
-    #@unittest.skip
+    @unittest.skip
     def test_create_dataframe_and_save_locally(self, test_int):
         # Create an instance of the class
         obj_scraper = CMCScraper()
@@ -158,13 +159,39 @@ class CMCScraperTestCase(unittest.TestCase):
         
         self.assertEqual(original_list_length, data_frame_length) 
 
-    @patch('CMC_Scraper.CMC_Scraper.method')
-    @patch('CMC_Scraper.CMC_Scraper.method')
-    @patch('CMC_Scraper.CMC_Scraper.method')
-    def test_login(self,
-                   Mock_webdriver_init: Mock, 
-                   Mock_maximise_window: Mock,
-                   Mock_auto_login: Mock):
+    @patch('CMCScraper.CMCScraper.upload_file_to_s3')
+    @patch('CMCScraper.CMCScraper.upload_folder_to_S3')
+    @patch('CMCScraper.CMCScraper.upload_table_from_csv_to_RDS')
+    def test_interaction_with_S3_bucket(self,
+                                        Mock_upload_file_to_s3: Mock, 
+                                        Mock_upload_folder_to_S3: Mock,
+                                        Mock_upload_table_from_csv_to_RDS: Mock):
+        
+        assert Mock_upload_file_to_s3.called_once
+        assert Mock_upload_folder_to_S3.called_once
+        assert Mock_upload_table_from_csv_to_RDS.called_once
+        
+        s3_client = boto3.client('s3')
+        #Counts the number of files in the path
+        source_directory_count = 0
+        for element in pathlib.Path(r"C:\Users\marko\DS Projects\Data\Crypto_images").iterdir():
+            if element.is_file():
+                source_directory_count += 1
+        
+        S3_bucket_count = 0
+        for root,dirs,files in os.walk(r"C:\Users\marko\DS Projects\Data\Crypto_images"):
+            for file in files:
+                file =str(file)
+                already_uploaded = s3_client.list_objects_v2(Bucket='cmc-bucket-mo', Prefix=file)
+                if 'Contents' in already_uploaded:
+                    S3_bucket_count += 1
+        
+        self.assertEqual(source_directory_count, S3_bucket_count)
+                   
+
+        
+
+            
 
     def tearDown(self):
         files = glob.glob(r"C:\Users\marko\DS Projects\CMC_Scraper\Test\Test_data\*")
