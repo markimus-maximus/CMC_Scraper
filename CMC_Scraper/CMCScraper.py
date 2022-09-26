@@ -21,6 +21,7 @@ import psycopg2
 from sqlalchemy import create_engine
 from sqlalchemy import inspect
 import itertools
+import ntpath
 
 
 
@@ -93,8 +94,6 @@ class CMCScraper:
 
         self.url_tag = str
         
-        self.record_uuid_dict = {}
-
         self.name_list_and_images_one_day = []
 
         self.name_list_and_images_all = []
@@ -111,8 +110,10 @@ class CMCScraper:
         
         self.image_record_list = []
 
-        
-    def daterange(self, start_date, end_date, frequency):
+    @staticmethod
+    def daterange(  start_date, 
+                    end_date, 
+                    frequency):
         '''This method generates a range of dates between 2 given dates which is converted to a string list.
         
         syntax: daterange(start_date, end_date, frequency)
@@ -132,8 +133,9 @@ class CMCScraper:
         date_list = date_list_all[::frequency]
         return date_list
         
-
-    def __create_url_list_with_date_permalinks(self, root_url, date_list):
+    @staticmethod
+    def __create_url_list_with_date_permalinks( root_url, 
+                                                date_list):
         '''Method for concatenating list of permalinks to given url, returning a list of unique urls containing url and permalink.
         
         syntax: create_url_list_with_date_permalinks(root_url, date_list)
@@ -151,7 +153,11 @@ class CMCScraper:
             final_url_list.append(url_instance)
         return final_url_list
 
-    def create_url_list_final(self, start_date, end_date, frequency,  root_url):
+    def create_url_list_final(  self, 
+                                start_date, 
+                                end_date, 
+                                frequency,  
+                                root_url):
         '''Method which creates a list of urls by combining a list of pre-generated and formatted date permalinks (exectuted
         by 'daterange' method call) and then concatenating the date permalinks to a root url (executed by 'create_url_list_with_date_permalinks'
         method call) 
@@ -169,7 +175,8 @@ class CMCScraper:
         return final_url
         
 
-    def __get_image_src_list_from_webpage(self, url):
+    def __get_image_src_list_from_webpage ( self, 
+                                            url):
         '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
         files. This will only get the first 10 images since the rest of the images are dynamically accessed.
         
@@ -226,7 +233,8 @@ class CMCScraper:
         #print(self.name_list_and_images_all)
         
 
-    def __save_images_from_webpage(self, path):
+    def __save_images_from_webpage  (self, 
+                                    path):
         '''This method retrieves and saves the images generated in method 'get_image_src_list_from_webpage' to an indicated
         path
         
@@ -253,7 +261,10 @@ class CMCScraper:
 
         
         
-    def save_images_from_multiple_webpages(self, url_list, num_pages, path):
+    def save_images_from_multiple_webpages( self, 
+                                            url_list, 
+                                            num_pages, 
+                                            path):
         '''Method which incorporates previous methods to scrape multiple webpages, retrieve the images and save images locally.
         
         syntax: save_images_from_multiple_webpages(url_list, num_pages, path)
@@ -338,7 +349,9 @@ class CMCScraper:
                 break
   
     
-    def __get_crypto_rows(self, url_list, num_pages):
+    def __get_crypto_rows(  self, 
+                            url_list, 
+                            num_pages):
         '''This method scrapes each row of data correlating to the associated cryptocurrency.
         
         Example use case: Scraping a row of Bitcoin data  from a particular webpage (date). The data included in a 
@@ -418,8 +431,8 @@ class CMCScraper:
         crypto_data_frame.to_csv(path_or_buf=path)
         return crypto_data_frame
 
-    
-    def UUID_dictionary(self, record_list):
+    @staticmethod
+    def UUID_dictionary(record_list):
         ''' 
         This method generates UUIDs for every record in the method attribute list and stores in a list, before concatenating the
         UUID with a list to generate a dictionary.
@@ -438,11 +451,13 @@ class CMCScraper:
             uuid_list.append(single_uuid)
             
         #making the dictionary with the record list and the uuid list just generated
-        self.record_uuid_dict = dict(zip(uuid_list, record_list))
-        return self.record_uuid_dict
+        record_uuid_dict = {}
+        record_uuid_dict = dict(zip(uuid_list, record_list))
+        return record_uuid_dict
 
-    
-    def turn_dictionary_into_json_file(self, path, file_to_turn_into_json):
+    @staticmethod
+    def turn_dictionary_into_json_file(  path, 
+                                        file_to_turn_into_json):
         '''This method converts a file to a JSON file and saves it to a specified path.
         
         syntax: turn_dictionary_into_json_file(path, dictionary_to_turn_into_json)
@@ -453,13 +468,18 @@ class CMCScraper:
         with open(path, 'w') as fp:
             json.dump(file_to_turn_into_json, fp)
     
-    
-    def crypto_data_UUID_list_dictionary(self, record_list, path):
-        Dictionary = self.UUID_dictionary(record_list)
-        self.turn_dictionary_into_json_file(path, self.record_uuid_dict)
+    @staticmethod
+    def crypto_data_UUID_list_dictionary(   record_list, 
+                                            path):
+        Dictionary = CMCScraper.UUID_dictionary(record_list)
+        CMCScraper.turn_dictionary_into_json_file(path, Dictionary)
         return Dictionary
 
-    def upload_file_to_s3(self, file_name, bucket, object_name=None):
+    @staticmethod
+    def upload_file_to_s3(  file_path, 
+                            bucket, 
+                            object_name=None):
+            
         """Upload a file to an S3 bucket
 
         :param file_name: File to upload (directory)
@@ -468,26 +488,36 @@ class CMCScraper:
         :return: True if file was uploaded, else False
         """
 
+        file_name = str(ntpath.basename(file_path))
+        print(file_name) 
         # If S3 object_name was not specified, use file_name
         if object_name is None:
-            object_name = os.path.basename(file_name)
-
-        # Upload the file
+            object_name = file_name
+        # Create instance of S3 
         s3_client = boto3.client('s3')
-        try:
-            response = s3_client.upload_file(file_name, bucket, object_name)
-        except ClientError as e:
-            logging.error(e)
-            return False
-        return True
-
-    def upload_folder_to_S3(self, path, bucket):
+        #Get S3 contents and norrow down by Prefix=file_name
+        already_uploaded = s3_client.list_objects_v2(Bucket=bucket, Prefix=file_name)
+        print(already_uploaded)
+        #If 'Contents' exists in the search then there must be a match
+        if 'Contents' in already_uploaded:
+             print('File already in bucket')
+        else: s3_client.upload_file(file_name, bucket, object_name) 
+                
+        
+    @staticmethod
+    def upload_folder_to_S3(folder_path, bucket):
         s3_client = boto3.client('s3')
-        for root,dirs,files in os.walk(path):
+        for root,dirs,files in os.walk(folder_path):
             for file in files:
-                s3_client.upload_file(os.path.join(root, file), bucket, file)
+                file =str(file)
+                already_uploaded = s3_client.list_objects_v2(Bucket=bucket, Prefix=file)
+                print(already_uploaded)
+                if 'Contents' in already_uploaded:
+                    print('File already in bucket, no file uploaded') 
+                else: s3_client.upload_file(os.path.join(root, file), bucket, file)
+                
 
-
+    @staticmethod
     def upload_table_from_csv_to_RDS(self):
         
         DATABASE_TYPE = 'postgresql'
@@ -500,19 +530,19 @@ class CMCScraper:
         engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
         engine.connect()
         #import the .csv which is stored and convert back to a dataframe
-        self.dataframe = pd.read_csv(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\datatable.csv")
-        print(self.dataframe.head())
-        self.dataframe.to_sql('crypto_dataset', engine, if_exists='replace')
+        dataframe = pd.read_csv(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\datatable.csv")
+        print(dataframe.head())
+        dataframe.to_sql('crypto_dataset', engine, if_exists='replace')
 
 if __name__ =="__main__":
     yolo = CMCScraper()
-    final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
-    get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
+    #final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
+    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
     #crypto_data_list = yolo.get_crypto(final_url, 10)
     #yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
     #yolo.sql()
     #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
     #yolo.crypto_data_UUID_list_dictionary(get_all_images, r"C:\Users\marko\DS Projects\Data\image_dict.json")
-    #yolo.upload_files(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)", 's3://mofirstbucket1/CMC data upload 1/', 'CMCdata upload 1/')
-    #yolo.upload_file(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\1.png", 'cmc-bucket-mo')
-    #yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data", 'cmc-bucket-mo')
+    #yolo.upload_files(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo', 'Crypto_images')
+    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\image_dict.json", 'cmc-bucket-mo')
+    yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo')
