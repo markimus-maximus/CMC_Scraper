@@ -5,6 +5,7 @@ import logging
 from botocore.exceptions import ClientError
 import numpy as np
 import os
+import time
 from os import listdir
 from os.path import isfile, join
 import pandas as pd
@@ -119,14 +120,17 @@ class CMCScraper:
         syntax: daterange(start_date, end_date, frequency)
         
         Takes 3 arguments
-        start_date argument = the date to begin the date_range, in the format "dd-mm-yyyy" including the inverted commas.
-        end_date argument = the date to end the date range, in the format "dd-mm-yyyy" including the inverted commas
+        start_date argument = the date to begin the date_range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas.
+        end_date argument = the date to end the date range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas
         frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
         for coinmarketcap.com this could be weekly, so 7 is the frequency. The first date on coinmarketcap.com is 28 Apr 2013
         
         '''
         #generate list of unformatted dates between 2 dates
-        date_list_unformatted = pd.date_range(start= start_date, end = end_date)
+        
+        date_list_unformatted = pd.date_range(start=start_date, end=end_date)
+
+        print(date_list_unformatted)
         #format date to match with the required use (in this example for URL permalinks)
         date_list_all = date_list_unformatted.strftime('%Y%m%d/')
         #slice based on the required frequency of dates
@@ -152,12 +156,13 @@ class CMCScraper:
             #append into list
             final_url_list.append(url_instance)
         return final_url_list
-
-    def create_url_list_final(  self, 
+    
+    @staticmethod
+    def create_url_list_final(   
                                 start_date, 
                                 end_date, 
                                 frequency,  
-                                root_url):
+                                root_url=str):
         '''Method which creates a list of urls by combining a list of pre-generated and formatted date permalinks (exectuted
         by 'daterange' method call) and then concatenating the date permalinks to a root url (executed by 'create_url_list_with_date_permalinks'
         method call) 
@@ -170,8 +175,8 @@ class CMCScraper:
         frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
         root_url argument = the url root address with which to concatenate the permalink list'''
         
-        date_list = self.daterange(start_date, end_date, frequency)
-        final_url = self.__create_url_list_with_date_permalinks(root_url, date_list)
+        date_list = CMCScraper.daterange(start_date, end_date, frequency)
+        final_url = CMCScraper.__create_url_list_with_date_permalinks(root_url, date_list)
         return final_url
         
 
@@ -306,6 +311,7 @@ class CMCScraper:
             
             #find the column within the row and strip the text
             crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
+            print(crypto_name)
             #find and create variable for crypto_rank
             crypto_rank = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__rank'}).text.strip()
             #Getting the first letter of the crypto name to check if it is in the ticker in the assertion below
@@ -371,6 +377,8 @@ class CMCScraper:
             self.url_tag = url
             #request webpage
             webpage = requests.get(url)
+            #hold on a tick
+            time.sleep(0.5)
             #parse the html
             soup = BeautifulSoup(webpage.text, 'html.parser')
             #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
@@ -381,6 +389,8 @@ class CMCScraper:
             self.__scrape_items_from_row()
             #increase the count above for each iteration
             count += 1
+            print(self.url_tag)
+            print('.')
 
         #getting lengths of lists for assertions and checks later dowjn the line 
         self.total_crypto_url_tag_entries = len(self.crypto_url_tag_list)
@@ -418,19 +428,26 @@ class CMCScraper:
         return self.daily_records_combined_list  
     
     
-    def get_crypto(self, url_list, num_pages):
+    def get_crypto(self, url_list, num_pages=None):
+        if num_pages == None:
+            num_pages = len(url_list)
         self.__get_crypto_rows(url_list, num_pages)
         all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
         return all_scraped_data_list 
 
+    @staticmethod
+    def create_crypto_dataframe(list_of_lists_for_table):
+        return pd.DataFrame.from_records(list_of_lists_for_table, columns=["source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
     
-    def create_dataframe_and_save_locally(self, list_of_lists_for_table, path):
-        crypto_data_frame = pd.DataFrame.from_records(list_of_lists_for_table, columns=["source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
-        print(crypto_data_frame)
-        crypto_data_frame.to_csv(path_or_buf=path)
-        return crypto_data_frame
+    @staticmethod
+    def save_dataframe_locally(dataframe, path):
+        return dataframe.to_csv(path_or_buf=path)
 
+    @staticmethod
+    def csv_to_dataframe(csv_path):
+        return pd.read_csv(csv_path)
+        
     @staticmethod
     def UUID_dictionary(record_list):
         ''' 
@@ -497,11 +514,10 @@ class CMCScraper:
         s3_client = boto3.client('s3')
         #Get S3 contents and norrow down by Prefix=file_name
         already_uploaded = s3_client.list_objects_v2(Bucket=bucket, Prefix=file_name)
-        print(already_uploaded)
         #If 'Contents' exists in the search then there must be a match
         if 'Contents' in already_uploaded:
              print('File already in bucket')
-        else: s3_client.upload_file(file_name, bucket, object_name) 
+        else: s3_client.upload_file(file_path, bucket, object_name) 
                 
         
     @staticmethod
@@ -518,7 +534,7 @@ class CMCScraper:
                 
 
     @staticmethod
-    def upload_table_from_csv_to_RDS(self):
+    def upload_table_from_csv_to_RDS(path_to_csv, name_of_table):
         
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
@@ -530,19 +546,123 @@ class CMCScraper:
         engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
         engine.connect()
         #import the .csv which is stored and convert back to a dataframe
-        dataframe = pd.read_csv(r"C:\Users\marko\OneDrive\Desktop\Web_Scraping\New folder (2)\datatable.csv")
-        print(dataframe.head())
-        dataframe.to_sql('crypto_dataset', engine, if_exists='replace')
+        dataframe = pd.read_csv(path_to_csv)
+        print(dataframe.head(10))
+        dataframe.to_sql(name_of_table, engine)
+
+    @staticmethod
+    def get_RDS_to_dataframe(name_of_table):
+        DATABASE_TYPE = 'postgresql'
+        DBAPI = 'psycopg2'
+        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' # Change it to your AWS endpoint
+        USER = 'postgres'
+        PASSWORD = 'ABC123!!'
+        PORT = 5432
+        DATABASE = 'postgres'
+        engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
+        engine.connect()
+        return pd.read_sql_table(name_of_table, engine)
+   
+        
+    
+        
+    
+
+    @staticmethod
+    def get_all_available_webpages():
+        #define date variables of first day of records and today's date to test all range of dates 
+        first_day_on_record = date(2013, 4, 28)
+        today = date.today()
+        #turn into strings to allow input to the method
+        first_day_on_record = str(first_day_on_record)
+        today = str(today)
+        #run the final method create_url_list_final
+        all_available_records = CMCScraper.create_url_list_final(first_day_on_record, today, 1, 'https://coinmarketcap.com/historical/')
+        df = pd.DataFrame(all_available_records, columns=["source_url"])
+        return df
+
+    @staticmethod
+    def compare_dataframes(df1, df2):
+        set_for_differences = set(df1['source_url']).difference(set(df2['source_url']))
+        #return the list which has been reordered into dates: this is now the url list for rescraping
+        return list(sorted(set_for_differences))    
+    
+    @staticmethod
+    def compare_CSVs(path_to_CSV1, path_to_CSV2):
+        #Convert csv1 into df
+        df1 = pd.read_csv(path_to_CSV1)
+        #Convert csv2 into df
+        df2 = pd.read_csv(path_to_CSV2)
+        #Convert dfs to sets and then compare for differences
+        into_dataframes = CMCScraper.compare_dataframes(df1, df2)
+        return(into_dataframes)
+
+   
+    def upload_data_to_RDS(self, sql_table_name):
+        DATABASE_TYPE = 'postgresql'
+        DBAPI = 'psycopg2'
+        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
+        USER = 'postgres'
+        PASSWORD = 'ABC123!!'
+        PORT = 5432
+        DATABASE = 'postgres'
+        engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
+        engine.connect()
+        sql_df = pd.read_sql_table(sql_table_name, engine)
+        print(f'sql_df:{sql_df}')
+        all_available_entries = CMCScraper.get_all_available_webpages()
+        print(f'all_available_entries:{all_available_entries}')
+        comparison = CMCScraper.compare_dataframes(all_available_entries, sql_df)
+        get_remaining_data = self.get_crypto(comparison)
+        print(get_remaining_data)
+        df_of_fresh_data = CMCScraper.create_crypto_dataframe(get_remaining_data)
+        df_of_fresh_data.to_sql(sql_table_name, engine, if_exists='append', index= False)
+
+        
+        
+        
+
+    
+        
+        
+
+                
 
 if __name__ =="__main__":
     yolo = CMCScraper()
-    #final_url = yolo.create_url_list_final('28-04-2013', '18-09-2022', 1, 'https://coinmarketcap.com/historical/')
+    #final_url = yolo.create_url_list_final('04-28-2013', '09-01-2022', 1, 'https://coinmarketcap.com/historical/')
+    #print(final_url)
+    #print(len(final_url))
     #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
-    #crypto_data_list = yolo.get_crypto(final_url, 10)
-    #yolo.create_table_and_save_locally(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\datatable.csv")
-    #yolo.sql()
-    #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\OneDrive\DS Projects\Web_Scraping\Data\dict.json")
+    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
+    
+    
+    #crypto_data_list = yolo.get_crypto(final_url, 3300)
+    #crypto_dataframe = yolo.create_crypto_dataframe(crypto_data_list)
+    #yolo.save_dataframe_locally(crypto_dataframe, r"C:\Users\marko\DS Projects\Data\first_scrape.csv")
+    
+    #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\DS Projects\Data\first_scrape.json")
+    
     #yolo.crypto_data_UUID_list_dictionary(get_all_images, r"C:\Users\marko\DS Projects\Data\image_dict.json")
-    #yolo.upload_files(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo', 'Crypto_images')
-    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\image_dict.json", 'cmc-bucket-mo')
-    yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo')
+    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\first_scrape.json", 'cmc-bucket-mo')
+    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", 'cmc-bucket-mo')
+    #yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo')
+    #yolo.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", 'crypto_datatable')
+    all_available_urls = yolo.get_all_available_webpages()
+    print(all_available_urls)
+    current_database = yolo.get_RDS_to_dataframe('crypto_datatable')
+    print(current_database)
+    remaining_urls_to_scrape = yolo.compare_dataframes(all_available_urls, current_database)
+    #get_new_urls = yolo.compare_CSVs(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", r"C:\Users\marko\DS Projects\Data\second_scrape.csv")
+    all_new_crypto_urls =  yolo.get_crypto(remaining_urls_to_scrape, len(remaining_urls_to_scrape))
+    new_crypto = yolo.get_crypto(all_new_crypto_urls)
+    new_df = yolo.create_crypto_dataframe(new_crypto)
+    saved_locally = yolo.save_dataframe_locally(new_df, r"C:\Users\marko\DS Projects\Data\first_scrape.csv")
+
+    #yolo.get_all_available_webpages()
+    #yolo.upload_data_to_RDS('crypto_datatable')
+    #a =
+    #updated_dataframe = yolo.save_dataframe_locally(r"C:\Users\marko\DS Projects\Data\updated_RDS_27-09-22.csv", a)
+    #
+    #dataframe_from_rds = yolo.csv_to_dataframe(r"C:\Users\marko\DS Projects\Data\updated_RDS_27-09-22.csv")
+    #)
