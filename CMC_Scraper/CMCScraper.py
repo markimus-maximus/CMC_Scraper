@@ -618,16 +618,6 @@ class CMCScraper:
         df_of_fresh_data = CMCScraper.create_crypto_dataframe(get_remaining_data)
         df_of_fresh_data.to_sql(sql_table_name, engine, if_exists='append', index= False)
 
-        
-        
-        
-
-    
-        
-        
-
-                
-
 if __name__ =="__main__":
     yolo = CMCScraper()
     #final_url = yolo.create_url_list_final('04-28-2013', '09-01-2022', 1, 'https://coinmarketcap.com/historical/')
