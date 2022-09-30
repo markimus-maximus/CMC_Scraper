@@ -17,6 +17,7 @@ from DataHandler import DataHandling
 import uuid
 import json
 import logging
+import re
 import boto3
 import psycopg2
 from sqlalchemy import create_engine
@@ -110,6 +111,8 @@ class CMCScraper:
         self.image_name_list = []
         
         self.image_record_list = []
+
+        self.user_friendly_tag_list = []
 
     @staticmethod
     def daterange(  start_date, 
@@ -311,25 +314,49 @@ class CMCScraper:
             
             #find the column within the row and strip the text
             crypto_name = name_column.find('a', attrs={'class': 'cmc-table__column-name--name cmc-link'}).text.strip()
-            print(crypto_name)
             #find and create variable for crypto_rank
-            crypto_rank = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__rank'}).text.strip()
+            crypto_rank = int(row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__rank'}).text.strip())
             #Getting the first letter of the crypto name to check if it is in the ticker in the assertion below
             crypto_name_first_index = crypto_name[0].upper()
-            #find and createvvariable for market cap
-            crypto_market_cap = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__market-cap'}).text.strip()
-            #Find and create variable for the price
-            crypto_price = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__price'}).text.strip()
+            #find and createvvariable for market cap with currency sign
+            crypto_market_cap = str(row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__market-cap'}).text.strip())
+            crypto_market_cap = re.sub("[^\d\.]", "", crypto_market_cap)
+            if crypto_market_cap == '':
+                crypto_market_cap = float(0)
+            #remove non-numeric/decimal symbols
+            else: crypto_market_cap = float(crypto_market_cap)
+            
+            #Find and create variable for the price with currency sign
+            crypto_price = str(row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__price'}).text.strip())
+            crypto_price = re.sub("[^\d\.]", "", crypto_price)
+            if crypto_price == '':
+                crypto_price = float(0)
+                print(f'it has converted to float, float is {crypto_price}')
+            else: crypto_price = float(crypto_price)
+            
+            
+            
             #Find and create variable for the circulating supply
             crypto_circulating_supply_and_ticker = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__circulating-supply'}).text.strip()
             #Find and create variable for the circulating supply by splitting the supply+ticker variable
             crypto_ticker = crypto_circulating_supply_and_ticker.split(' ')[1]
             #Find and create variable for the coin ticker
             crypto_circulating_supply = crypto_circulating_supply_and_ticker.split(' ')[0]
+            #convert to float and remove commas
+            crypto_circulating_supply = re.sub("[^\d\.]", "", crypto_circulating_supply)
+            if crypto_circulating_supply == '':
+                crypto_circulating_supply = float(0)
+            else: crypto_circulating_supply = float(crypto_circulating_supply)
             #Find and create variable for 24 hour % change in price
             crypto_price_change = row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sortable cmc-table__cell--right cmc-table__cell--sort-by__percent-change-24-h'}).text.strip()
-
-            
+            #remove % symbol, also if there is no change it is marked as '--' by CMC, so need to check that before converting to float as it will break the scraper, if it is then will convert to value float 0
+            crypto_price_change = re.sub("[^\d\.]", "", crypto_price_change)
+            if crypto_price_change == '':
+                crypto_price_change = float(0)
+            else: crypto_price_change = float(crypto_price_change)
+                
+                         
+            #Some exceptions to the assertion rule
             if crypto_ticker == 'PTS':
                 pass 
             elif crypto_name == 'Kittehcoin' or 'Electric' or 'Stellar':
@@ -389,8 +416,8 @@ class CMCScraper:
             self.__scrape_items_from_row()
             #increase the count above for each iteration
             count += 1
-            print(self.url_tag)
-            print('.')
+            print(f'Page scraped: {self.url_tag}')
+            
 
         #getting lengths of lists for assertions and checks later dowjn the line 
         self.total_crypto_url_tag_entries = len(self.crypto_url_tag_list)
@@ -411,6 +438,12 @@ class CMCScraper:
         return self.crypto_url_tag_list, self.crypto_rank_list, self.crypto_name_list, self.crypto_market_cap_list, self.crypto_price_list,  self.crypto_circulating_supply_list, self.crypto_ticker_list, self.crypto_price_change_list
             
    
+    def __generate_user_friendly_tag(self):
+
+        for i in range(len(self.crypto_name_list)):
+            user_friendly_tag_list = self.crypto_name_list[i]+ f' {self.crypto_url_tag_list[i]}'
+            self.user_friendly_tag_list.append (user_friendly_tag_list)
+    
     def __daily_record_concatenater(self):    
         '''This code packages each record into a list: for example BTC price from a particular date. 
         
@@ -423,7 +456,7 @@ class CMCScraper:
         '''
         #iterates for the number of elements in url_tag_list
         for i in range(len(self.crypto_url_tag_list)):
-            self.daily_records_combined_list.append([self.crypto_url_tag_list[i], self.crypto_rank_list[i], self.crypto_name_list[i],self.crypto_market_cap_list[i],self.crypto_price_list[i],self.crypto_circulating_supply_list[i],self.crypto_ticker_list[i], self.crypto_price_change_list[i]]) 
+            self.daily_records_combined_list.append([self.user_friendly_tag_list[i], self.crypto_url_tag_list[i], self.crypto_rank_list[i], self.crypto_name_list[i],self.crypto_market_cap_list[i],self.crypto_price_list[i],self.crypto_circulating_supply_list[i],self.crypto_ticker_list[i], self.crypto_price_change_list[i]]) 
         self.total_entries_appended = len(self.daily_records_combined_list)
         return self.daily_records_combined_list  
     
@@ -432,13 +465,14 @@ class CMCScraper:
         if num_pages == None:
             num_pages = len(url_list)
         self.__get_crypto_rows(url_list, num_pages)
+        self.__generate_user_friendly_tag()
         all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
         return all_scraped_data_list 
 
     @staticmethod
     def create_crypto_dataframe(list_of_lists_for_table):
-        return pd.DataFrame.from_records(list_of_lists_for_table, columns=["source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
+        return pd.DataFrame.from_records(list_of_lists_for_table, columns=["ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"])
     
     @staticmethod
     def save_dataframe_locally(dataframe, path):
@@ -518,7 +552,6 @@ class CMCScraper:
         if 'Contents' in already_uploaded:
              print('File already in bucket')
         else: s3_client.upload_file(file_path, bucket, object_name) 
-                
         
     @staticmethod
     def upload_folder_to_S3(folder_path, bucket):
@@ -531,7 +564,6 @@ class CMCScraper:
                 if 'Contents' in already_uploaded:
                     print('File already in bucket, no file uploaded') 
                 else: s3_client.upload_file(os.path.join(root, file), bucket, file)
-                
 
     @staticmethod
     def upload_table_from_csv_to_RDS(path_to_csv, name_of_table):
@@ -563,11 +595,6 @@ class CMCScraper:
         engine.connect()
         return pd.read_sql_table(name_of_table, engine)
    
-        
-    
-        
-    
-
     @staticmethod
     def get_all_available_webpages():
         #define date variables of first day of records and today's date to test all range of dates 
@@ -596,9 +623,8 @@ class CMCScraper:
         #Convert dfs to sets and then compare for differences
         into_dataframes = CMCScraper.compare_dataframes(df1, df2)
         return(into_dataframes)
-
    
-    def upload_data_to_RDS(self, sql_table_name):
+    def upload_data_to_pre_existing_RDS(self, sql_table_name):
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
         ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
@@ -606,53 +632,37 @@ class CMCScraper:
         PASSWORD = 'ABC123!!'
         PORT = 5432
         DATABASE = 'postgres'
+        #assemble connection credentials
         engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
+        #connect to RDS
         engine.connect()
-        sql_df = pd.read_sql_table(sql_table_name, engine)
-        print(f'sql_df:{sql_df}')
+        #reads the sql table and converts to dataframe
+        sql_df = pd.read_sql_table(sql_table_name, engine) 
+        print(f'sql_df: {sql_df}')
+        #creates a dataframe of all available urls from first date to present day
         all_available_entries = CMCScraper.get_all_available_webpages()
-        print(f'all_available_entries:{all_available_entries}')
+        #comares both dataframes for differences and returns a list of urls yet to be scraped
         comparison = CMCScraper.compare_dataframes(all_available_entries, sql_df)
+        print(f'comparison: {comparison}')
+        #retrieves the remaining data to be scraped
         get_remaining_data = self.get_crypto(comparison)
-        print(get_remaining_data)
+        #Creates a dataframe of the freshly-scraped data
         df_of_fresh_data = CMCScraper.create_crypto_dataframe(get_remaining_data)
+        print(f'df of fresh data {df_of_fresh_data}')
+        #Uploads to sql
         df_of_fresh_data.to_sql(sql_table_name, engine, if_exists='append', index= False)
 
 if __name__ =="__main__":
     yolo = CMCScraper()
-    #final_url = yolo.create_url_list_final('04-28-2013', '09-01-2022', 1, 'https://coinmarketcap.com/historical/')
-    #print(final_url)
-    #print(len(final_url))
-    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
-    #get_all_images = yolo.save_images_from_multiple_webpages(final_url, 10, r"C:\Users\marko\DS Projects\Data\crypto_images")
-    
-    
-    #crypto_data_list = yolo.get_crypto(final_url, 3300)
-    #crypto_dataframe = yolo.create_crypto_dataframe(crypto_data_list)
-    #yolo.save_dataframe_locally(crypto_dataframe, r"C:\Users\marko\DS Projects\Data\first_scrape.csv")
-    
-    #yolo.crypto_data_UUID_list_dictionary(crypto_data_list, r"C:\Users\marko\DS Projects\Data\first_scrape.json")
-    
-    #yolo.crypto_data_UUID_list_dictionary(get_all_images, r"C:\Users\marko\DS Projects\Data\image_dict.json")
-    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\first_scrape.json", 'cmc-bucket-mo')
-    #yolo.upload_file_to_s3(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", 'cmc-bucket-mo')
-    #yolo.upload_folder_to_S3(r"C:\Users\marko\DS Projects\Data\Crypto_images", 'cmc-bucket-mo')
-    #yolo.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", 'crypto_datatable')
-    all_available_urls = yolo.get_all_available_webpages()
-    print(all_available_urls)
-    current_database = yolo.get_RDS_to_dataframe('crypto_datatable')
-    print(current_database)
-    remaining_urls_to_scrape = yolo.compare_dataframes(all_available_urls, current_database)
-    #get_new_urls = yolo.compare_CSVs(r"C:\Users\marko\DS Projects\Data\first_scrape.csv", r"C:\Users\marko\DS Projects\Data\second_scrape.csv")
-    all_new_crypto_urls =  yolo.get_crypto(remaining_urls_to_scrape, len(remaining_urls_to_scrape))
-    new_crypto = yolo.get_crypto(all_new_crypto_urls)
-    new_df = yolo.create_crypto_dataframe(new_crypto)
-    saved_locally = yolo.save_dataframe_locally(new_df, r"C:\Users\marko\DS Projects\Data\first_scrape.csv")
-
-    #yolo.get_all_available_webpages()
-    #yolo.upload_data_to_RDS('crypto_datatable')
-    #a =
-    #updated_dataframe = yolo.save_dataframe_locally(r"C:\Users\marko\DS Projects\Data\updated_RDS_27-09-22.csv", a)
-    #
-    #dataframe_from_rds = yolo.csv_to_dataframe(r"C:\Users\marko\DS Projects\Data\updated_RDS_27-09-22.csv")
-    #)
+    all_urls = yolo.create_url_list_final('04-28-2013', '09-23-2022', 1, 'https://coinmarketcap.com/historical/')
+    all_data = yolo.get_crypto(all_urls, len(all_urls))
+    dataframe = yolo.create_crypto_dataframe(all_data)
+    csv = yolo.save_dataframe_locally(dataframe, r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.csv")
+    dictionary = yolo.crypto_data_UUID_list_dictionary(all_data, r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.json")
+    #yolo.upload_data_to_pre_existing_RDS('crypto_datatable')
+    #new_RDS = yolo.get_RDS_to_dataframe('crypto_datatable')
+    #print(new_RDS)
+    #yolo.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.csv", 'crypto_datatable')
+    #dataframe = pd.read_csv(r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.csv")
+    #dataframe[["Market Capitalisation","Price", 'Circulating Supply', '24 h change']] = dataframe[["Market Capitalisation","Price", 'Circulating Supply', '24 h change']].apply(pd.to_numeric)
+    #print(dataframe)
