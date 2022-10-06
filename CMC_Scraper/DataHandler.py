@@ -18,7 +18,7 @@ class DataHandling:
         syntax: UUID_dictionary(record_list)
         
         Takes 1 argument.
-        record_list argument= the list of records which are to be concatenated to UUIDs
+        record_list argument = the list of records which are to be concatenated to UUIDs
           '''
         uuid_list = []   
         #generate a pseudo-unique uuid for every record in the list by taking the length of the list
