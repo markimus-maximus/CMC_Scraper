@@ -20,45 +20,41 @@ class ScraperTestCase(unittest.TestCase):
 
         self.Scraper = Web_Scraper()
         
-    #unittest.skip  
+    #@unittest.skip  
     def test_webdriver_init(self):
+        #initialise the driver
         self.Scraper.webdriver_init('https://coinmarketcap.com/')
-
+        #get the url im the driver
         actual_url = self.Scraper.driver.current_url
-        
+        #define the expected url
         expected_url = 'https://coinmarketcap.com/'
-       
-        print(actual_url)
-
+        #Check that the actual and expected urls match
         self.assertEqual(actual_url, expected_url)
-
+        #quit the driver
         self.Scraper.driver.quit
         
     
-    #unittest.skip
+    #@unittest.skip
     def test_cookies_bypass(self):
         scraper = Web_Scraper()
-        
+        #initialise the instance
         scraper.webdriver_init('https://www.amazon.co.uk') # needs to be https:// version to work
-
+        #pause to allow full load/not appear as a bot
         time.sleep(2)
-        
+        # bypass cookies
         scraper.cookies_bypass('//*[@id="sp-cc-accept"]')
-
+        #pause to allow full load/not appear as a bot
         time.sleep(2)
-
+        #click login, if this can't be done then coookies were not bypassed
         XPath_click_to_login = '/html/body/div[1]/header/div/div[1]/div[3]/div/a[2]'
         click_login = scraper.driver.find_element(by=By.XPATH, value= XPath_click_to_login)
         click_login.click()
-
         time.sleep(2)
-
+        #get the actual url visitedby the driver
         actual_url = str(scraper.driver.current_url)
-
-        print(actual_url)
-        
+        # the expected url
         expected_url = 'https://www.amazon.co.uk/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.co.uk%2F%3Fref_%3Dnav_ya_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=gbflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&'
-
+        #check that the expect and actual urls match, if not then cookies were not bypassed
         self.assertEqual(actual_url, expected_url), "the actual url is not the same as expected url, cookies not bypassed"
 
     @patch('Web_Scraper.Web_Scraper.webdriver_init')
@@ -76,8 +72,6 @@ class ScraperTestCase(unittest.TestCase):
         
         expected_url = 'https://coinmarketcap.com/'
        
-        print(actual_url)
-
         self.assertEqual(actual_url, expected_url)
         assert Mock_webdriver_init.called_once
         assert Mock_maximise_window.called_once
