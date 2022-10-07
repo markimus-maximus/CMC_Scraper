@@ -1,26 +1,16 @@
-from msilib.schema import Binary
-from bs4 import BeautifulSoup
 from botocore.exceptions import ClientError
-import numpy as np
+from bs4 import BeautifulSoup
+from DataHandler import DataHandler
+from sqlalchemy import create_engine
 import os
-import time
 import pandas as pd
-from pathlib import Path
+import re
 import requests
 from selenium.webdriver.common.by import By
+import time
 import urllib.request
-from DataHandler import DataHandler
-import re
-from sqlalchemy import create_engine
-from sqlalchemy import inspect
-import DataHandler
 
-
-
-
-
-
-class CMCScraper(DataHandler.DataHandler):
+class CMCScraper(DataHandler):
     ''' Class for scraping data from Coin Market Cap, although much of this code could be easily adapted for other scraping applications.
     
     This class can generate a list of dates between 2 given dates and formats the list in order to  use them as permalinks, 
@@ -31,6 +21,7 @@ class CMCScraper(DataHandler.DataHandler):
    
     def __init__(self):
         print('init started')
+        self.crypto_url_tag_list = []
         self.crypto_rank_list =  []
         self.crypto_name_list = []
         self.crypto_market_cap_list = []
@@ -42,96 +33,28 @@ class CMCScraper(DataHandler.DataHandler):
         self.total_entries = 0
         self.average_entries = 0
         self.total_entries_appended = 0
-        self.number_of_downloads = 0
         self.total_name_entries = 0
         self.total_CS_entries = 0 
         self.total_MK_entries = 0 
         self.total_crypto_price_entries = 0 
         self.total_CT_entries = 0
-        self.crypto_url_tag_list = []
         self.total_crypto_url_tag_entries = 0
         self.total_rank_entries = 0
         self.url_tag = str
-        self.name_and_images_combined_list = []
         self.image_name_list = []
         self.user_friendly_tag_list = []
 
-    @staticmethod
-    def daterange(  start_date:str, 
-                    end_date:str, 
-                    frequency:int):
-        '''This method generates a range of dates between 2 given dates which is converted to a string list.
-        
-        syntax: daterange(start_date, end_date, frequency)
-        
-        Takes 3 arguments
-        start_date argument = the date to begin the date_range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas.
-        end_date argument = the date to end the date range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas
-        frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
-        for coinmarketcap.com this could be weekly, so 7 is the frequency. The first date on coinmarketcap.com is 28 Apr 2013
-        
-        '''
-        #generate list of unformatted dates between 2 dates
-        
-        date_list_unformatted = pd.date_range(start=start_date, end=end_date)
-
-        print(date_list_unformatted)
-        #format date to match with the required use (in this example for URL permalinks)
-        date_list_all = date_list_unformatted.strftime('%Y%m%d/')
-        #slice based on the required frequency of dates
-        date_list = date_list_all[::frequency]
-        return date_list
-        
-    @staticmethod
-    def __create_url_list_with_date_permalinks( root_url:str, 
-                                                date_list:list):
-        '''Method for concatenating list of permalinks to given url, returning a list of unique urls containing url and permalink.
-        
-        syntax: create_url_list_with_date_permalinks(root_url, date_list)
-        
-        Takes 2 arguments
-        root_url argument = the url root address with which to concatenate the permalink list
-        date_list argument = predefined date_list from daterange method'''
-
-        url_list = []
-        for url_extension in date_list:
-            #concatenate the root_url with the url permalink
-            url_instance = root_url + str(url_extension)
-            #append into list
-            url_list.append(url_instance)
-        return url_list
     
-    @staticmethod
-    def create_url_list_final(   
-                                start_date:str, 
-                                end_date:str, 
-                                frequency:int,  
-                                root_url:str):
-        '''Method which creates a list of urls by combining a list of pre-generated and formatted date permalinks (exectuted
-        by 'daterange' method call) and then concatenating the date permalinks to a root url (executed by 'create_url_list_with_date_permalinks'
-        method call) 
-        
-        syntax: create_url_list_final(start_date, end_date, frequency,  root_url)
-        
-        Takes 4 arguments
-        start_date argument = the date to begin the date_range, in the format "mm-dd-yyyy" including the inverted commas.
-        end_date argument = the date to end the date range, in the format "mm-dd-yyyy" including the inverted commas.
-        frequency argument = an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
-        root_url argument = the url root address with which to concatenate the permalink list'''
-        
-        date_list = CMCScraper.daterange(start_date, end_date, frequency)
-        final_url_list = CMCScraper.__create_url_list_with_date_permalinks(root_url, date_list)
-        return final_url_list
-        
 
     def __get_image_src_list_from_webpage ( self, 
                                             url:str):
         '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
-        files. This will only get the first 10 images since the rest of the images are dynamically accessed.
+        files. These .png urls will be returned in a list. This will only get the first 10 images since the 
+        rest of the images are dynamically accessed.
         
         syntax: get_image_src_list_from_webpage(url)
         
-        Takes 1 argument (likely inherited from url_list in parent method)
+        Takes 1 argument (likely inherited from url_list in child method)
         url argument = the webpage url to scrape and retrieve the images
         '''
         
@@ -141,6 +64,8 @@ class CMCScraper(DataHandler.DataHandler):
         #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
         image_table_rows = soup.find_all('tr', attrs={'class':'cmc-table-row'})
         #scrape the crypo name data
+        name_and_images_combined_list = []
+        image_list = []
         for crypto_name_area in image_table_rows:
             #get the actual name
             name_column = crypto_name_area.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__name'})
@@ -160,19 +85,19 @@ class CMCScraper(DataHandler.DataHandler):
             image = image['src']
             #pairs the name and image src scraped from the same row to generate a "friendly" name tag
             crypto_name_and_image_single = [crypto_name, image]
-            if crypto_name_and_image_single not in self.name_and_images_combined_list:
-                self.name_and_images_combined_list.append(crypto_name_and_image_single)
+            if crypto_name_and_image_single not in name_and_images_combined_list:
+                name_and_images_combined_list.append(crypto_name_and_image_single)
             #prevent_rescrape of image_list elements
-            if image not in self.image_list:
-                self.image_list.append(image)
-        #length of image_list to be used as an assertion
-        self.one_day_image_list_length = len(self.image_list) 
-        #append daily records to the master list
+            if image not in image_list:
+                image_list.append(image)
+        return image_list
+        
         
     def __save_images_from_webpage  (self, 
-                                    path:str):
+                                    path:str,
+                                    image_list:list):
         '''This method retrieves and saves the images generated in method 'get_image_src_list_from_webpage' to an indicated
-        path
+        path. Returns the number of downloads 
         
         syntax: save_images_from_webpage(path)
         
@@ -181,7 +106,7 @@ class CMCScraper(DataHandler.DataHandler):
         '''
         len_path = len(path)
         #loop to iterate through the image list, using enumerate method to rename the file after every iteration
-        for i, image in enumerate(self.image_list, 1):
+        for i, image in enumerate(image_list, 1):
             #renaming the file
             path = f'{path[:len_path]}\{i}.png' 
             #code to prevent redownloading of duplicates from previous iterations of the enumeration loop
@@ -190,8 +115,8 @@ class CMCScraper(DataHandler.DataHandler):
             else:
                 #retrieve the image and save with path
                 urllib.request.urlretrieve(image, path)
-            #counts the number of image downloads
-            self.number_of_downloads = i
+              
+        
 
     def save_images_from_multiple_webpages( self, 
                                             url_list:list, 
@@ -208,10 +133,10 @@ class CMCScraper(DataHandler.DataHandler):
         '''
         #Looping through the method which scrapes the images src and name for given number of pages
         for url in url_list[:num_pages]:
-            self.__get_image_src_list_from_webpage(url)
-        #After all is scraped, the images are downloaded and saved in folder with path 
-        self.__save_images_from_webpage(path)
-        return self.image_list
+            image_list = self.__get_image_src_list_from_webpage(url)
+        #After all .png is scraped, the images are downloaded and saved in folder with path 
+            self.__save_images_from_webpage(path, image_list)
+        return image_list
         
     def __scrape_items_from_row(self):   
         ''' This function scrapes the data from one of the cryptocurrency rows generated in the function 'get_crypto_rows'. 
@@ -365,6 +290,11 @@ class CMCScraper(DataHandler.DataHandler):
             
    
     def __generate_user_friendly_tag(self):
+        '''This method creates a list of user-friendly record tags which are unique to each record. This is achieved by combining the source url with the crypto name
+        
+        syntax __generate_user_friendly_tag()
+        
+        Takes 0 arguments'''
 
         for i in range(len(self.crypto_name_list)):
             user_friendly_tag_list = self.crypto_name_list[i]+ f' {self.crypto_url_tag_list[i]}'
@@ -390,6 +320,15 @@ class CMCScraper(DataHandler.DataHandler):
     def get_crypto( self, 
                     url_list:list, 
                     num_pages=None):
+        '''This method combines private methods in order to scrape daily data from coin market cap. This method returns the following data as a list of lists:
+        User friendly ID, source url, crypto rank, name, daily market capitalisation ($), daily price ($), daily circulating supply ($), crypto ticker, 24 h price change (%)
+        
+        syntax: get_crypto(url_list:list, num_pages=None)
+
+        Takes 1 argument and one optional argument
+        url_list = the list of urls to iteratively scrape
+        num_pages = the number of pages starting from the beginning of url_list to scrape. If = None, the entire url_list will be used
+        '''
         if num_pages == None:
             num_pages = len(url_list)
         self.__get_crypto_rows(url_list, num_pages)
@@ -401,7 +340,16 @@ class CMCScraper(DataHandler.DataHandler):
     
    
     def upload_data_to_pre_existing_RDS(self, 
-                                        sql_table_name:str):
+                                        RDS_table_name:str):
+        '''This method compares data on an RDS table to all available entries, and in doing ensures that only records which are outstanding are
+        scraped and appended to the database. 
+
+        syntax: upload_data_to_pre_existing_RDS(RDS_table_name:str)
+
+        Takes 1 argument
+        RDS_table_name = the RDS table to compare to and append only required entries 
+        
+        '''
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
         ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
@@ -414,33 +362,25 @@ class CMCScraper(DataHandler.DataHandler):
         #connect to RDS
         engine.connect()
         #reads the sql table and converts to dataframe
-        sql_df = pd.read_sql_table(sql_table_name, engine) 
+        sql_df = pd.read_sql_table(RDS_table_name, engine) 
         print(f'sql_df: {sql_df}')
         #creates a dataframe of all available urls from first date to present day
-        all_available_entries = CMCScraper.get_all_available_webpages()
+        all_available_entries = DataHandler.get_all_available_webpages()
         #comares both dataframes for differences and returns a list of urls yet to be scraped
-        comparison = CMCScraper.compare_dataframes(all_available_entries, sql_df)
+        comparison = DataHandler.compare_dataframes(all_available_entries, sql_df)
         print(f'comparison: {comparison}')
         #retrieves the remaining data to be scraped
         get_remaining_data = self.get_crypto(comparison)
         #Creates a dataframe of the freshly-scraped data
-        df_of_fresh_data = CMCScraper.create_crypto_dataframe(get_remaining_data)
+        df_of_fresh_data = DataHandler.create_dataframe(get_remaining_data)
         print(f'df of fresh data {df_of_fresh_data}')
         #Uploads to sql
-        df_of_fresh_data.to_sql(sql_table_name, engine, if_exists='append', index= False)
+        df_of_fresh_data.to_sql(RDS_table_name, engine, if_exists='append', index= False)
 
 if __name__ =="__main__":
     yolo = CMCScraper()
-    all_urls = yolo.create_url_list_final('04-28-2013', '05-05-2013', 1, 'https://coinmarketcap.com/historical/')
-    all_data = yolo.get_crypto(all_urls, len(all_urls))
-    dataframe = yolo.create_dataframe(all_data, "ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change")
-    print(dataframe)
-    csv = yolo.save_dataframe_locally(dataframe, r"C:\Users\marko\DS Projects\Data\test_restructure.csv")
-    dictionary = yolo.crypto_data_UUID_list_dictionary(all_data, r"C:\Users\marko\DS Projects\Data\test_restructure.json")
-    #yolo.upload_data_to_pre_existing_RDS('crypto_datatable')
-    #new_RDS = yolo.get_RDS_to_dataframe('crypto_datatable')
-    #print(new_RDS)
-    #yolo.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.csv", 'crypto_datatable')
-    #dataframe = pd.read_csv(r"C:\Users\marko\DS Projects\Data\scrape_up_to_23-09-22.csv")
-    #dataframe[["Market Capitalisation","Price", 'Circulating Supply', '24 h change']] = dataframe[["Market Capitalisation","Price", 'Circulating Supply', '24 h change']].apply(pd.to_numeric)
-    #print(dataframe)
+    url_list = yolo.create_url_list_final('04-29-2013', '10-05-2022', 10, 'https://coinmarketcap.com/historical/')
+    get_crypto = yolo.get_crypto(url_list, 3)
+    UUID_list = yolo.create_UUID_list(len(url_list))
+
+    
