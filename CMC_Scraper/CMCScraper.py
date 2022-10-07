@@ -2,11 +2,13 @@ from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
 from DataHandler import DataHandler
 from sqlalchemy import create_engine
+import logging
 import os
 import pandas as pd
 import re
 import requests
 from selenium.webdriver.common.by import By
+import sys
 import time
 import urllib.request
 
@@ -18,9 +20,18 @@ class CMCScraper(DataHandler):
     permalinks to a root url. The result of this is a list of urls which can be used to iterate through.
     Additionally, this class can scrape and save all crypto price records as well as images from a specified number of webpages, 
     as defined by the generated url list above'''
-   
+
+    
+    
     def __init__(self):
-        print('init started')
+        logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M',
+                    handlers=[
+                    logging.FileHandler("CMCScraper_log.log"),
+                    logging.StreamHandler(sys.stdout)])
+        logging.info('Scraper instance started')
+        
         self.crypto_url_tag_list = []
         self.crypto_rank_list =  []
         self.crypto_name_list = []
@@ -44,8 +55,6 @@ class CMCScraper(DataHandler):
         self.image_name_list = []
         self.user_friendly_tag_list = []
 
-    
-
     def __get_image_src_list_from_webpage ( self, 
                                             url:str):
         '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
@@ -57,10 +66,10 @@ class CMCScraper(DataHandler):
         Takes 1 argument (likely inherited from url_list in child method)
         url argument = the webpage url to scrape and retrieve the images
         '''
-        
+        logging.info('__get_image_src_list_from_webpage method called')
         #create BS object
         soup = self.__get_soup(url)
-        print(f'Page scraped: {url}')
+        logging.info(f'Page scraped: {url}')
         #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
         image_table_rows = soup.find_all('tr', attrs={'class':'cmc-table-row'})
         #scrape the crypo name data
@@ -104,6 +113,7 @@ class CMCScraper(DataHandler):
         Takes 1 argument
         path argument = the path to save the file once retrieved (the file name is modified for every unique image). 
         '''
+        logging.info('__save_images_from_webpage method called')
         len_path = len(path)
         #loop to iterate through the image list, using enumerate method to rename the file after every iteration
         for i, image in enumerate(image_list, 1):
@@ -149,6 +159,7 @@ class CMCScraper(DataHandler):
         
         Requires 0 arguments 
         '''
+        logging.info('__scrape_items_from_row method called')
         #start counter
         count = 0
         for row in self.tr:
@@ -229,7 +240,7 @@ class CMCScraper(DataHandler):
         '''Requires 2 arguments
         num_pages argument = number of webpages to iterate through from the url_list
         url_list argument = the list with urls to iterate through'''
-       
+        ('__get_soup method called')
         #request webpage
         webpage = requests.get(url)
         #hold on a tick to prevent skipping urls
@@ -253,6 +264,7 @@ class CMCScraper(DataHandler):
         num_pages argument = number of webpages to iterate through from the url_list
         url_list argument = the list with urls to iterate through
           '''
+        logging.info('__get_crypto_rows method called')
         #creating count for each iteration below
         count = 0
         #iterates through the url_list from create_url_final, limited by parameter 'num_pages' which is the number of pages 
@@ -269,7 +281,7 @@ class CMCScraper(DataHandler):
             self.__scrape_items_from_row()
             #increase the count above for each iteration
             count += 1
-            print(f'Page scraped: {self.url_tag}')
+            logging.info(f'Page scraped: {self.url_tag}')
         #getting lengths of lists for assertions and checks later dowjn the line 
         self.total_crypto_url_tag_entries = len(self.crypto_url_tag_list)
         self.total_rank_entries = len(self.crypto_rank_list)
@@ -310,6 +322,7 @@ class CMCScraper(DataHandler):
         
         requires 0 arguments
         '''
+        logging.info('__scrape_items_from_row method called')
         #iterates for the number of elements in url_tag_list
         for i in range(len(self.crypto_url_tag_list)):
             self.daily_records_combined_list.append([self.user_friendly_tag_list[i], self.crypto_url_tag_list[i], self.crypto_rank_list[i], self.crypto_name_list[i],self.crypto_market_cap_list[i],self.crypto_price_list[i],self.crypto_circulating_supply_list[i],self.crypto_ticker_list[i], self.crypto_price_change_list[i]]) 
