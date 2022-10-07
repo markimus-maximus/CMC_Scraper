@@ -1,17 +1,11 @@
-import json
-import uuid
-import logging
-import uuid
-import json
-import boto3
-import psycopg2
-import itertools
-import ntpath
 from datetime import date 
-import pandas as pd
-import os
 from sqlalchemy import create_engine
-from sqlalchemy import inspect
+import boto3
+import json
+import ntpath
+import os
+import pandas as pd
+import uuid
 
 class DataHandler:
     
@@ -85,25 +79,6 @@ class DataHandler:
         final_url_list = DataHandler.__create_url_list_with_date_permalinks(root_url, date_list)
         return final_url_list
         
-    
-    @staticmethod
-    def create_UUID_list(UUID_list_length:int):
-        ''' 
-        This method generates UUIDs for every record in the argument record_list and stores in a list, 
-        
-        syntax: UUID_dictionary(UUID_list_length:int)
-        
-        Takes 1 argument.
-        UUID_list_length argument = the required length of the UUID list
-          '''
-        uuid_list = []   
-        #generate a pseudo-unique uuid for every record in the list by taking the length of the list
-        for UUID in range(UUID_list_length):
-            #generates 1 uuid4 and converts to string (this is easier for dictionary saving to JSON)
-            single_uuid = str(uuid.uuid4())
-            #append the UUID to the list
-            uuid_list.append(single_uuid)
-        #making the dictionary with the record list and the uuid list just generated
 
     @staticmethod
     def create_dict_from_2_lists(list_1:list, list_2:list):
@@ -119,16 +94,16 @@ class DataHandler:
         return record_uuid_dict
             
     
-    def turn_data_into_json_file(self, path:str, data_to_convert_to_json):
+    def turn_data_into_file(self, path:str, data_to_convert_into_file):
         '''This method converts data to a JSON file and saves it to a specified path.
         
-        syntax: turn_data_into_json_file(path:str, data_to_turn_into_json)
+        syntax: turn_data_into_json_file(path:str, data_to_turn_into_file)
 
         Takes 2 arguments
         path = path for file to be written to and name of file
-        data_to_convert_to_json argument = the file to be stored as a json file'''
+        data_to_convert_to_json argument = the data to be stored as a file'''
         with open(path, 'w') as fp:
-            json.dump(data_to_convert_to_json, fp)
+            json.dump(data_to_convert_into_file, fp)
 
     def list_zipper(self, list_1:list, list_2:list): 
         '''This method appends 2 lists together according to the index of each, for the length of the shortest list.
@@ -197,6 +172,8 @@ class DataHandler:
             single_uuid = str(uuid.uuid4())
             #append the UUID to the list
             uuid_list.append(single_uuid)
+        return uuid_list
+        
             
         @staticmethod
         def create_dictionary_from_two_lists(list_1:list, list_2:list):
@@ -290,9 +267,7 @@ class DataHandler:
         
         Takes 2 arguments:
         path_to_csv = the path to the .csv file
-        name_of_table = the name of the table in the RDS to upload to
-        
-        '''
+        name_of_table = the name of the table in the RDS to upload to '''
         
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
@@ -384,4 +359,8 @@ class DataHandler:
         return(into_dataframes)
 
 if __name__ =="__main__":
-    DataHandler()
+    yolo = DataHandler()
+    
+
+
+    
