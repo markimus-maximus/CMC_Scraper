@@ -22,6 +22,7 @@ class ScraperTestCase(unittest.TestCase):
         
     #@unittest.skip  
     def test_webdriver_init(self):
+        '''Tests that the webdriver is initialised and accessed the correct url'''
         #initialise the driver
         self.Scraper.webdriver_init('https://coinmarketcap.com/')
         #get the url im the driver
@@ -36,6 +37,7 @@ class ScraperTestCase(unittest.TestCase):
     
     #@unittest.skip
     def test_cookies_bypass(self):
+        '''Tests cookie bypass'''
         scraper = Web_Scraper()
         #initialise the instance
         scraper.webdriver_init('https://www.amazon.co.uk') # needs to be https:// version to work
@@ -64,6 +66,7 @@ class ScraperTestCase(unittest.TestCase):
                    Mock_webdriver_init: Mock, 
                    Mock_maximise_window: Mock,
                    Mock_auto_login: Mock):
+        '''Checks that different elements of web scraper class are called once'''
         scraper = Web_Scraper()
         scraper.webdriver_init('https://coinmarketcap.com/')
         scraper.maximise_window()
