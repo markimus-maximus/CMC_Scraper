@@ -41,8 +41,8 @@ The code for the scraper has been split into 3 components. The CMCScraper class 
 - The `create_url_list_final(start_date:str, end_date:str, frequency:int, root_url:str` public method combines the two methods above to generate the list of URLs with which to use with the scraper.
 
 ## Milestone 3: Retrieving data from each webpage
-
-- There are different elements to scraping the cryptocurrency data:  
+**Tablular data**  
+- There are different processes which are carried out to scrape the cryptocurrency tabular data from coinmarketcap:  
 1. Navigating to the webpage and extracting HTML.  
 The `__get_soup(url:str)` method uses `requests` and `url` from a list of URLS (Milestone 2) to access the webpage. A beutiful soup object is then generated to extract all of the HTML.
 2. Extracting data from a row.  
@@ -55,11 +55,24 @@ After all of the data across the desired number of webpages has been scraped, th
 The `get_crypto(url_list:list, num_pages=None)` method uses all of the crypto scraping and processing methods discussed above together under one method. The arguments which can be passed to this method include the url list (Milestone 2) and an optional argument which is the number of pages to scrape from the list (the default is all pages).
 6. Converting data to a dataframe.  
 The method `create_dataframe(list_for_dataframe:list, *headings)` takes the list of lists generated above and converts to a dataframe. The list of lists is taken as an argument and a flexible number of headings can be optionally passed as arguments.
+<img width="587" alt="image" src="https://user-images.githubusercontent.com/107410852/194768649-a52bfc34-2947-46b3-b2d0-6fd55fe5e031.png">
+Example of a dataframe generated using the above methods
 7. Creating a dictionary of records.  
 Using the method `create_uuid_list(list_length:int)`, a UUID is generated using `str(uuid.uuid4())` syntax. The length of the UUID list is given as an argument to the method. After this uuid list object has been generated, the method `create_dict_from_2_lists(list_1:list, list_2:list)` takes the UUID list and the crypto data list of lists to make a dicitionary.
 8. Store the data locally.  
-The dataframe object generated in number 6 can be converted to a `.csv` file using the `save_dataframe_locally(dataframe, path:str)` method which takes the dataframe object and the path for the .csv file as arguments, thus saving these data locally. Additionally, the `turn_data_into_file(path:str, data_to_convert_into_file)` method saves the dictionary from point 7 into a `.json` file, again saving this locally based on a provided path.
-
+The dataframe object generated in number 6 can be converted to a `.csv` file using the `save_dataframe_locally(dataframe, path:str)` method which takes the dataframe object and the path for the .csv file as arguments, thus saving these data locally. Additionally, the `turn_data_into_file(path:str, data_to_convert_into_file)` method saves the dictionary from point 7 into a `.json` file, again saving this locally based on a provided path.  
+**Image data**
+- Similarly to tabular data, there are different processes which are carried out to scrape the cryptocurrency image data from coinmarketcap. The prliminary parts of image scraping uses the same methods as scraping tabular data: 
+1. Navigating to the webpage and extracting HTML.  
+The `__get_soup(url:str)` method uses `requests` and `url` from a list of URLS (Milestone 2) to access the webpage. A beutiful soup object is then generated to extract all of the HTML.
+2. Extracting data from a row.  
+Similarly to the `get rows` method for tabular data above, the `__get_image_data_from_webpage(url:str)` method extracts data from each row, taking the url of the page to scrape as an argument. These data include the name of the record in the row, concatenating these names into a list. The next piece of information scraped from the row is .img data, which is refined to contain only src data (these are specifically the images from the cryptocurrencies as opposed to other website images) and appended into an image list. The name and the src are combined into a user-friendly name tag for each image
+3. Retrieve the images 
+The `__retrieve_images_from_webpage(path:str, image_list:list)` method iterates through the image_list generated above to retrieve all images and save them locally. This is achieved by taking the path for file storage, and the image list from one webpage (from point 2) to iterate through. Using the `enumerate` method, each retrieved file is named according to the numerical index in which the it was retrieved in the `for` loop. 
+4. Iterate through multiple pages
+The `save_images_from_multiple_webpages url_list:list, num_pages:int, path:str)` method combines the 2 methods above, taking arguments for the list containing URLs (code generated in Milestone 2), the number of URLs to iterate through and the path for file saving.
+<img width="494" alt="image" src="https://user-images.githubusercontent.com/107410852/194769829-152b8414-e9c9-4992-9a6a-2e77b9bd8ca9.png">
+Example images scraped using this technique
 ## Milestone 4: Refining and Testing
 **Refining**  
 - Docstrings were added to all methods, as well as more # comments to improve user readability.
@@ -72,8 +85,12 @@ The dataframe object generated in number 6 can be converted to a `.csv` file usi
       -  A 0.5 second pause was included between each webpage to prevent skipping webpages when multiple webpages were scraped iteratively.
       - Replacement of some instance variables to method-returned variables where possible.
       - Three exceptions to assertions were created where the scraper should have passed the assertions but the data did not follow canonical patterns.
--Unittest took 66 seconds to pass all of the tests. 
--A `tearDown()` method deletes all test files.
+-Unittest took 91 seconds to pass all of the tests. 
+-A `tearDown()` method deletes all test files in the test data folder.
+
+# Milestone 5: Scalably storing the data  
+- An amazon S3 bucket was generated for use as a data lake, sotred on the Amazon Web Service (AWS) server. The bucket cmc-bucket-mo was generated to store data into. To upload local data into the S3 bucket, either a file or a directory can be uploaded using the `upload_file_to_s3` or `upload_folder_to_s3` methods, respectively, of the `DataHandler` class. Both of these methods were generated with the AWS development library `boto3`.
+- Also on AWS, a Relational Database Service (RDS) was generated with which to upload tabular data.
 
 
 
