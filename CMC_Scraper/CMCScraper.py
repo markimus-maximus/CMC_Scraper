@@ -1,7 +1,12 @@
 from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
 from DataHandler import DataHandler
+from io import StringIO
 from sqlalchemy import create_engine
+import awswrangler as wr
+import boto3
+import getpass
+import json
 import logging
 import os
 import pandas as pd
@@ -24,7 +29,7 @@ class CMCScraper(DataHandler):
     
     
     def __init__(self):
-        logging.basicConfig(level=logging.DEBUG,
+        logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M',
                     handlers=[
@@ -54,9 +59,11 @@ class CMCScraper(DataHandler):
         self.url_tag = str
         self.image_name_list = []
         self.user_friendly_tag_list = []
+        self.image_list = []
+        self.image_data_combined_list = []
 
-    def __get_image_src_list_from_webpage ( self, 
-                                            url:str):
+    def __get_image_data_from_webpage ( self, 
+                                        url:str):
         '''This method generates a list of URLS corresponding to data from a webpage and retrieves only .png
         files. These .png urls will be returned in a list. This will only get the first 10 images since the 
         rest of the images are dynamically accessed.
@@ -73,8 +80,6 @@ class CMCScraper(DataHandler):
         #create a variable for the table rows (tr), limited to the length of the number of table rows on the page
         image_table_rows = soup.find_all('tr', attrs={'class':'cmc-table-row'})
         #scrape the crypo name data
-        name_and_images_combined_list = []
-        image_list = []
         for crypto_name_area in image_table_rows:
             #get the actual name
             name_column = crypto_name_area.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__name'})
@@ -92,21 +97,21 @@ class CMCScraper(DataHandler):
                 break
             #extract only src
             image = image['src']
-            #pairs the name and image src scraped from the same row to generate a "friendly" name tag
-            crypto_name_and_image_single = [crypto_name, image]
-            if crypto_name_and_image_single not in name_and_images_combined_list:
-                name_and_images_combined_list.append(crypto_name_and_image_single)
+            #pairs the name and image src scraped from the same row to generate a "user-friendly" name tag
+            crypto_name_and_image_single = [crypto_name, image, url]
+            if crypto_name_and_image_single not in self.image_data_combined_list:
+                self.image_data_combined_list.append(crypto_name_and_image_single)
             #prevent_rescrape of image_list elements
-            if image not in image_list:
-                image_list.append(image)
-        return image_list
+            if image not in self.image_list:
+                self.image_list.append(image)
+        return self.image_list
         
         
-    def __save_images_from_webpage  (self, 
+    def __retrieve_images_from_webpage  (self, 
                                     path:str,
                                     image_list:list):
         '''This method retrieves and saves the images generated in method 'get_image_src_list_from_webpage' to an indicated
-        path. Returns the number of downloads 
+        path. Each image is named according to the unique number given on coinmarket cap
         
         syntax: save_images_from_webpage(path)
         
@@ -116,22 +121,25 @@ class CMCScraper(DataHandler):
         logging.info('__save_images_from_webpage method called')
         len_path = len(path)
         #loop to iterate through the image list, using enumerate method to rename the file after every iteration
-        for i, image in enumerate(image_list, 1):
+        for image in image_list:
+            #extracting numerical data from image name string 
+            image_sliced = re.findall('[0-9]+', image)
+            #Slicing out the last number to get unique number of image
+            image_sliced = image_sliced[3]
             #renaming the file
-            path = f'{path[:len_path]}\{i}.png' 
+            path = f'{path[:len_path]}\{image_sliced}.png' 
             #code to prevent redownloading of duplicates from previous iterations of the enumeration loop
             if os.path.exists(path):
                 pass
             else:
                 #retrieve the image and save with path
                 urllib.request.urlretrieve(image, path)
-              
-        
 
     def save_images_from_multiple_webpages( self, 
                                             url_list:list, 
                                             num_pages:int, 
-                                            path:str):
+                                            image_path:str,
+                                            ):
         '''Method which incorporates previous methods to scrape multiple webpages, retrieve the images and save images locally.
         
         syntax: save_images_from_multiple_webpages(url_list, num_pages, path)
@@ -143,10 +151,41 @@ class CMCScraper(DataHandler):
         '''
         #Looping through the method which scrapes the images src and name for given number of pages
         for url in url_list[:num_pages]:
-            image_list = self.__get_image_src_list_from_webpage(url)
+            image_list = self.__get_image_data_from_webpage(url)
         #After all .png is scraped, the images are downloaded and saved in folder with path 
-            self.__save_images_from_webpage(path, image_list)
-        return image_list
+            self.__retrieve_images_from_webpage(image_path, image_list)
+        dataframe = DataHandler.create_dataframe(self.image_data_combined_list, 'name', 'image', 'source_url')
+        print(dataframe)
+        return dataframe
+
+    def get_more_image_data(self, folder_path:str, bucket_name:str, Key:str):
+        # create client instance
+        s3 = boto3.client('s3')
+        #create csv object obtained from s3
+        csv_obj = s3.get_object(Bucket=bucket_name, Key=Key)
+        #turn csv object into df
+        df_of_s3 = pd.read_csv(csv_obj['Body'])
+        #print contents of df
+        print(f'all_s3: {df_of_s3}')
+        #Calculate webpages which need to be scraped
+        outstanding_webpages = self.get_outstanding_webpages(df_of_s3)
+        print(f'oustanding webpages to scrape: {outstanding_webpages}')
+        #create dataframe of all the newly-scraped data
+        new_data_dataframe = self.save_images_from_multiple_webpages(outstanding_webpages, len(outstanding_webpages), r"C:\Users\marko\DS Projects\Data\Crypto_images")
+        #create UUID dictionary
+        list_of_df= new_data_dataframe.values.tolist()
+        Dictionary = DataHandler.crypto_data_UUID_list_dictionary(list_of_df)
+        #append UUID dictionary to pre-existing dictionary
+        DataHandler.update_JSON_dictionary(Dictionary, r"C:\Users\marko\DS Projects\Data\Crypto_images\images_dict.json")
+        #use this method to update the dataframe
+        DataHandler.save_dataframe_locally(new_data_dataframe, r"C:\Users\marko\DS Projects\Data\Crypto_images\crypto_images.csv", header_choice=False)
+        #upload updated JSON dictionary to s3
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\Crypto_images\images_dict.json", bucket_name)
+        #upload updated .csv file to s3
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\Crypto_images\crypto_images.csv", bucket_name)
+        #re-upload any freshly scraped image data
+        DataHandler.upload_folder_to_S3(folder_path, 'cmc-bucket-mo')
+    
         
     def __scrape_items_from_row(self):   
         ''' This function scrapes the data from one of the cryptocurrency rows generated in the function 'get_crypto_rows'. 
@@ -329,10 +368,9 @@ class CMCScraper(DataHandler):
         self.total_entries_appended = len(self.daily_records_combined_list)
         return self.daily_records_combined_list  
     
-    
     def get_crypto( self, 
                     url_list:list, 
-                    num_pages=None):
+                    num_pages:int):
         '''This method combines private methods in order to scrape daily data from coin market cap. This method returns the following data as a list of lists:
         User friendly ID, source url, crypto rank, name, daily market capitalisation ($), daily price ($), daily circulating supply ($), crypto ticker, 24 h price change (%)
         
@@ -342,17 +380,24 @@ class CMCScraper(DataHandler):
         url_list = the list of urls to iteratively scrape
         num_pages = the number of pages starting from the beginning of url_list to scrape. If = None, the entire url_list will be used
         '''
-        if num_pages == None:
-            num_pages = len(url_list)
+        if num_pages==None:
+            num_pages=len(url_list)
+        
         self.__get_crypto_rows(url_list, num_pages)
         self.__generate_user_friendly_tag()
         all_scraped_data_list = self.__daily_record_concatenater()
         assert self.total_entries_appended == self.average_entries, "The number of total entries in the appended list does not match the total_crypto_url_tag_entries"
         return all_scraped_data_list 
-
-    
    
-    def upload_data_to_pre_existing_RDS(self, 
+    def get_outstanding_webpages(self, dataframe):
+        #creates a dataframe of all available urls from first date to present day
+        all_available_entries = self.get_all_available_webpages()
+        #comares both dataframes for differences and returns a list of urls yet to be scraped
+        comparison = DataHandler.compare_dataframes(all_available_entries, 'source_url', dataframe, 'source_url')
+        print(f'Webpages left to be scraped: {comparison}')
+        return comparison
+    
+    def upload_tabular_data_to_pre_existing_RDS(self, 
                                         RDS_table_name:str):
         '''This method compares data on an RDS table to all available entries, and in doing ensures that only records which are outstanding are
         scraped and appended to the database. 
@@ -377,23 +422,36 @@ class CMCScraper(DataHandler):
         #reads the sql table and converts to dataframe
         sql_df = pd.read_sql_table(RDS_table_name, engine) 
         print(f'sql_df: {sql_df}')
-        #creates a dataframe of all available urls from first date to present day
-        all_available_entries = DataHandler.get_all_available_webpages()
-        #comares both dataframes for differences and returns a list of urls yet to be scraped
-        comparison = DataHandler.compare_dataframes(all_available_entries, sql_df)
-        print(f'comparison: {comparison}')
+        outstanding_webpages = self.get_outstanding_webpages(sql_df)
         #retrieves the remaining data to be scraped
-        get_remaining_data = self.get_crypto(comparison)
+        get_remaining_data = self.get_crypto(outstanding_webpages, len(outstanding_webpages))
         #Creates a dataframe of the freshly-scraped data
-        df_of_fresh_data = DataHandler.create_dataframe(get_remaining_data)
+        df_of_fresh_data = DataHandler.create_dataframe(get_remaining_data, "ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change")
         print(f'df of fresh data {df_of_fresh_data}')
-        #Uploads to sql
+        #uploads to RDS
         df_of_fresh_data.to_sql(RDS_table_name, engine, if_exists='append', index= False)
+        return df_of_fresh_data
+        
+    def get_more_tabular_data(self, RDS_table_name:str):
+        logging.info('getting df of tabular')                                
+        df_of_fresh_data = self.upload_tabular_data_to_pre_existing_RDS(RDS_table_name)
+        #update .csv of tabular data locally 
+        DataHandler.save_dataframe_locally(df_of_fresh_data, r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv")
+        #make uuid dict of exixting data
+        list_of_df= df_of_fresh_data.values.tolist()
+        dictionary_of_new_data = DataHandler.crypto_data_UUID_list_dictionary(list_of_df)
+        #update dictionary JSON locally
+        DataHandler.update_JSON_dictionary(dictionary_of_new_data, r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.json")
+        #upload fresh files replacing the others
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'cmc-bucket-mo')
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.json", 'cmc-bucket-mo')
 
 if __name__ =="__main__":
-    yolo = CMCScraper()
-    url_list = yolo.create_url_list_final('04-29-2013', '10-05-2022', 10, 'https://coinmarketcap.com/historical/')
-    get_crypto = yolo.get_crypto(url_list, 3)
-    UUID_list = yolo.create_UUID_list(len(url_list))
+    #globals()[sys.argv[1]](sys.argv[2])
+    CMCScraper_inst = CMCScraper()
+    #CMCScraper_inst.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'crypto_tabular_data')
+    #CMCScraper_inst.get_more_tabular_data('crypto_tabular_data')
+    
+    
 
     
