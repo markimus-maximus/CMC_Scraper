@@ -5,8 +5,6 @@ from io import StringIO
 from sqlalchemy import create_engine
 import awswrangler as wr
 import boto3
-import getpass
-import json
 import logging
 import os
 import pandas as pd
@@ -449,8 +447,8 @@ class CMCScraper(DataHandler):
 if __name__ =="__main__":
     #globals()[sys.argv[1]](sys.argv[2])
     CMCScraper_inst = CMCScraper()
-    #CMCScraper_inst.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'crypto_tabular_data')
-    #CMCScraper_inst.get_more_tabular_data('crypto_tabular_data')
+    CMCScraper_inst.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'crypto_tabular_data')
+    CMCScraper_inst.get_more_tabular_data('crypto_tabular_data')
     
     
 
