@@ -2,6 +2,15 @@
 # Data Collection Pipeline Project- Coin Market Cap 
 
 My third project for AiCore. Webscraping coinmarketcap.com for cryptocurrency data.
+The milestones in this project are below:  
+Milestone 1: Deciding the website to scrape
+Milestone 2: Generating a list of unique URLs for each webpage
+Milestone 3: Retrieving data from each webpage
+Milestone 4: Refining and testing
+Milestone 5: Scalably storing the data 
+Milestone 6: 
+Milestone 7:
+
 
 ## Milestone 1: Deciding the website to scrape
 -	The aim of this project is to collect data crypto currency data and using this data to characterise factors which may impact cryptocurrency market standing.
@@ -73,7 +82,7 @@ The `__retrieve_images_from_webpage(path:str, image_list:list)` method iterates 
 The `save_images_from_multiple_webpages url_list:list, num_pages:int, path:str)` method combines the 2 methods above, taking arguments for the list containing URLs (code generated in Milestone 2), the number of URLs to iterate through and the path for file saving.
 <img width="494" alt="image" src="https://user-images.githubusercontent.com/107410852/194769829-152b8414-e9c9-4992-9a6a-2e77b9bd8ca9.png">
 Example images scraped using this technique
-## Milestone 4: Refining and Testing
+## Milestone 4: Refining and testing
 **Refining**  
 - Docstrings were added to all methods, as well as more # comments to improve user readability.
 - Where possible methods were made private.
@@ -91,7 +100,21 @@ Example images scraped using this technique
 ## Milestone 5: Scalably storing the data  
 - For cloud-based services, Amazon Web Services (AWS) was chosen. To connect to the various serves, ssh key pairs were generated and connection was configured via Ubuntu terminal (WSL).
 - An amazon S3 bucket was generated for use as a data lake and the bucket cmc-bucket-mo was generated to store data into. To generate a client connection instance the `create_s3_client(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)` method was generated, impementing the AWS development library `boto3`.   To upload local data into the S3 bucket, either a file or a directory can be uploaded using the `upload_file_to_s3` or `upload_folder_to_s3` methods of the `DataHandler` class. Both of these methods were again generated with the use of `boto3`. 
-- Also on AWS, a Relational Database Service (RDS) was generated with which to upload tabular data. `sqlalchemy` was chosen as the python library to interact with the SQL-based server. The `create_engine_RDS` creates an instance of an RDS connection. 
+- Also on AWS, a Relational Database Service (RDS) was generated with which to upload tabular data. `sqlalchemy` was chosen as the python library to interact with the SQL-based server. The `create_engine_RDS` creates an instance of an RDS connection. The `upload_table_from_csv_to_RDS(path_to_csv:str, name_of_table:str` method was written to upload data in .csv to the data scraper.
+<img width="570" alt="image" src="https://user-images.githubusercontent.com/107410852/195643479-8e326661-3b4d-45d1-a6a6-d65583deb66f.png">
+Example data from the RDS table
+
+## Milstone 6: Preventing rescraping and getting more data  
+
+To prevent rescraping a number of approaches were employed. At the level of data acquisition, and `if` statement was implemented to ensure that scraped image data from a given page was not already scraped (each image should have a unique numerical ID):
+~~~
+if crypto_name_and_image_single not in self.image_data_combined_list:
+                self.image_data_combined_list.append(crypto_name_and_image_single)
+            #prevent_rescrape of image_list elements
+            if image not in self.image_list:
+                self.image_list.append(image)
+                ~~~
+In addition to prevent image rescraping using the above approach, a master .csv file was generated and updated every time data was scraped to keep an up-to-date record of all scraped data. Using the `get_outstanding_webpages(dataframe)` method, all possible URLS to be scraped are generated using the method `get_all_available_webpages()` which take today's date and the earliest possible date to create a dataframe of these dates. This is then comapred to the 'source_url' column of the .csv file 
 
 
 
