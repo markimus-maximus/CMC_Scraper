@@ -2,9 +2,11 @@ from datetime import date
 from sqlalchemy import create_engine
 import boto3
 import json
+import logging
 import ntpath
 import os
 import pandas as pd
+import psycopg2
 import uuid
 
 class DataHandler:
@@ -15,7 +17,7 @@ class DataHandler:
     @staticmethod
     def daterange(  start_date:str, 
                     end_date:str, 
-                    frequency:int):
+                    frequency:int=None):
         '''This method generates a range of dates between 2 given dates which is converted to a string list.
         
         syntax: daterange(start_date, end_date, frequency)
@@ -23,12 +25,13 @@ class DataHandler:
         Takes 3 arguments
         start_date argument = the date to begin the date_range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas.
         end_date argument = the date to end the date range, in the format "mm-dd-yyyy" (pandas does not accept british date format) including the inverted commas
-        frequency argument= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
-        for coinmarketcap.com this could be weekly, so 7 is the frequency. The first date on coinmarketcap.com is 28 Apr 2013
+        frequency argument (optional)= an integer which dictates the frequency of the dates in the list. For example, for generating permalinks
+        for coinmarketcap.com this could be weekly, so 7 is the frequency. The first date on coinmarketcap.com is 28 Apr 2013. The default frequency is daily.
         
         '''
         #generate list of unformatted dates between 2 dates
-        
+        if frequency == None:
+            frequency = 1
         date_list_unformatted = pd.date_range(start=start_date, end=end_date)
 
         print(date_list_unformatted)
@@ -94,7 +97,7 @@ class DataHandler:
         return record_uuid_dict
             
     
-    def turn_data_into_file(self, path:str, data_to_convert_into_file):
+    def turn_data_into_json(self, path:str, data_to_convert_into_json):
         '''This method converts data to a JSON file and saves it to a specified path.
         
         syntax: turn_data_into_json_file(path:str, data_to_turn_into_file)
@@ -102,8 +105,8 @@ class DataHandler:
         Takes 2 arguments
         path = path for file to be written to and name of file
         data_to_convert_to_json argument = the data to be stored as a file'''
-        with open(path, 'w') as fp:
-            json.dump(data_to_convert_into_file, fp)
+        with open(path, 'a') as fp:
+            json.dump(data_to_convert_into_json, fp)
 
     def list_zipper(self, list_1:list, list_2:list): 
         '''This method appends 2 lists together according to the index of each, for the length of the shortest list.
@@ -132,17 +135,22 @@ class DataHandler:
     
     @staticmethod
     def save_dataframe_locally( dataframe, 
-                                path_for_new_csv:str):
+                                path_for_csv:str,
+                                header_choice=False,
+                                index_choice=False):
 
-        '''This method converts a dataframe to csv which is saved locally
+        '''This method converts a dataframe to csv which is saved locally. If file already exists, the data gets concatenated 
         
         syntax: ave_dataframe_locally(dataframe, path:str) 
                                 
-        Takes 2 arguments.
+        Takes 3 arguments.
 
         dataframe = dataframe to be saved
-        path = path to be store the dataframe including .csv file extension'''
-        return dataframe.to_csv(path_or_buf=path_for_new_csv)
+        path = path to be store the dataframe including .csv file extension
+        header_choice = Since this method is in append mode, it is to be decided whether this method needs to append a header or not. False by default.]
+        index_choice = Choose whether to include index, false by default '''
+        return dataframe.to_csv(path_or_buf=path_for_csv, mode='a', index=index_choice, header=header_choice)
+        
 
     @staticmethod
     def csv_to_dataframe(csv_path:str):
@@ -175,17 +183,17 @@ class DataHandler:
         return uuid_list
         
             
-        @staticmethod
-        def create_dictionary_from_two_lists(list_1:list, list_2:list):
-            '''This method creates a dictionary from 2 lists
-            
-            syntax create_dictionary_from_two_lists(list_1:list, list_2:list)
-            
-            Takes 2 arguments: the 2 lists to be converted into a dictionary'''
-       
-            record_uuid_dict = {}
-            record_uuid_dict = dict(zip(list_1, list_2))
-            return record_uuid_dict
+    @staticmethod
+    def create_dictionary_from_two_lists(list_1:list, list_2:list):
+        '''This method creates a dictionary from 2 lists
+        
+        syntax create_dictionary_from_two_lists(list_1:list, list_2:list)
+        
+        Takes 2 arguments: the 2 lists to be converted into a dictionary'''
+    
+        record_uuid_dict = {}
+        record_uuid_dict = dict(zip(list_1, list_2))
+        return record_uuid_dict
 
     @staticmethod
     def turn_file_into_json_file( path:str, 
@@ -197,20 +205,35 @@ class DataHandler:
         Takes 2 arguments
         path argument = path for file to be written to and name of file
         file_to_turn_into_json argument = the file to be stored as a json file'''
-        with open(path, 'w') as fp:
+        with open(path, 'a') as fp:
             json.dump(file_to_turn_into_json, fp)
     
     @staticmethod
     def crypto_data_UUID_list_dictionary(   record_list:list, 
-                                            path:str):
-        Dictionary = DataHandler.create_UUID_list(len(record_list))
-        DataHandler.turn_file_into_json_file(path, Dictionary)
+                                            ):
+        UUID_list = DataHandler.create_UUID_list(len(record_list))
+        Dictionary = DataHandler.create_dictionary_from_two_lists(UUID_list, record_list)
         return Dictionary
 
     @staticmethod
+    def update_JSON_dictionary(dictionary, JSON_file_path):
+        with open(JSON_file_path,'r+') as file:
+            # First we load existing data into a dict.
+            file_data = json.load(file)
+            # Join new_data with file_data inside emp_details
+            file_data.update(dictionary)
+            # Sets file's current position at offset.
+            file.seek(0)
+            # convert back to json.
+            json.dump(file_data, file, indent = 4)
+  
+
+    @staticmethod
     def upload_file_to_s3(  file_path:str, 
-                            bucket:str, 
-                            object_name=None):
+                            bucket:str,
+                            s3,
+                            object_name=None,
+                            ):
             
         """This method uploads a file to an S3 bucket
 
@@ -223,22 +246,26 @@ class DataHandler:
         return: True if file was uploaded, else False
         """
         file_name = str(ntpath.basename(file_path))
-        print(file_name) 
+        logging.info(f'{file_name} check') 
         # If S3 object_name was not specified, use file_name
         if object_name is None:
-            object_name = file_name
-        # Create instance of S3 
-        s3_client = boto3.client('s3')
+            object_name = file_name 
+        
         #Get S3 contents and norrow down by Prefix=file_name
-        already_uploaded = s3_client.list_objects_v2(Bucket=bucket, Prefix=file_name)
+        already_uploaded = s3.list_objects_v2(Bucket=bucket, Prefix=file_name)
+        #Convert path data type to str, needed for below
+        file_path = str(file_path)
         #If 'Contents' exists in the search then there must be a match
         if 'Contents' in already_uploaded:
-             print('File already in bucket')
-        else: s3_client.upload_file(file_path, bucket, object_name) 
+             print(f'{file_name} already in bucket, file not uploaded')
+        elif 'Content' not in already_uploaded:
+            s3.upload_file(file_path, bucket, object_name) 
+            logging.info(f'{file_name} uploaded')
         
     @staticmethod
     def upload_folder_to_S3(folder_path:str, 
-                            bucket:str):
+                            bucket:str,
+                            s3):
         """This method uploads a folder to an S3 bucket
 
         syntax: upload_folder_to_s3(folder_path:str, bucket:str)
@@ -248,19 +275,53 @@ class DataHandler:
         bucket: bucket to upload to (bucket name)
         return: True if file was uploaded, else False
         """
-        s3_client = boto3.client('s3')
+        #Convert folder path to strt, needed for later
+        folder_path = str(folder_path)
+        #Iterate through the file path
         for root,dirs,files in os.walk(folder_path):
             for file in files:
                 file =str(file)
-                already_uploaded = s3_client.list_objects_v2(Bucket=bucket, Prefix=file)
-                print(already_uploaded)
+                logging.info(f'{file} check') 
+                #Get S3 contents and norrow down by Prefix=file_name
+                already_uploaded = s3.list_objects_v2(Bucket=bucket, Prefix=file)
+                #If 'Contents' exists in the search then file must already exist
                 if 'Contents' in already_uploaded:
-                    print('File already in bucket, no file uploaded') 
-                else: s3_client.upload_file(os.path.join(root, file), bucket, file)
+                    print(f'{file} already in bucket, no file uploaded') 
+                elif 'Contents' not in already_uploaded:
+                    s3.upload_file(os.path.join(root, file), bucket, file)
+                    logging.info(f'{file} uploaded')
+    
+    @staticmethod
+    def rewrite_s3_file(    file_path:str, 
+                            bucket:str, 
+                            s3,
+                            object_name=None,
+                            ):
+            
+        """This method uploads a file to an S3 bucket. This is distinct from other upload to S3 methods since
+        it allows rewrite of previous data
+
+        syntax: upload_file_to_s3(file_path:str, bucket:str, object_name=None)
+        
+        Takes 2 arguments and one optional argument 
+        file_name: File to upload (directory)
+        bucket: Bucket to upload to (bucket name)
+        object_name: S3 object name, the name you want to give the file. If not specified then file_name is used
+        return: True if file was uploaded, else False
+        """
+        file_name = str(ntpath.basename(file_path))
+        
+        # If S3 object_name was not specified, use file_name
+        if object_name is None:
+            object_name = file_name
+        # Create instance of S3 
+        s3.upload_file(file_path, bucket, object_name) 
+        logging.info(f'{file_name} uploaded') 
 
     @staticmethod
-    def upload_table_from_csv_to_RDS(path_to_csv:str, 
-                                    name_of_table:str):
+    def upload_table_from_csv_to_RDS(path_to_csv:str,
+                                    name_of_table:str
+                                    ):
         '''This method uploads a .csv file to RDS.
         
         syntax: upload_table_from_csv_to_RDS(path_to_csv:str, name_of_table:str)
@@ -293,7 +354,7 @@ class DataHandler:
         name_of_table = the name of the  table from RDS to get contents of '''
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
-        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com'
+        ENDPOINT = 'testaroo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com'
         USER = 'postgres'
         PASSWORD = 'ABC123!!'
         PORT = 5432
@@ -357,6 +418,27 @@ class DataHandler:
         #Convert dfs to sets and then compare for differences
         into_dataframes = DataHandler.compare_dataframes(df1, csv_1_column_name, df2, csv_2_column_name)
         return(into_dataframes)
+
+    def create_engine_RDS(self, engine_credentials):
+        DATABASE_TYPE = 'postgresql'
+        DBAPI = 'psycopg2'
+        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
+        USER = 'postgres'
+        PASSWORD = 'ABC123!!'
+        PORT = 5432
+        DATABASE = 'postgres'
+        #assemble connection credentials
+        engine = create_engine(engine_credentials)
+        #connect to RDS
+        return engine.connect()
+
+    def create_s3_client(self,
+                        AWS_ACCESS_KEY_ID,
+                        AWS_SECRET_ACCESS_KEY,
+                        ):
+        # Create instance of S3 client 
+        s3_client = boto3.client('s3', aws_access_key_id= AWS_ACCESS_KEY_ID, aws_secret_access_key= AWS_SECRET_ACCESS_KEY)
+        return s3_client
 
 if __name__ =="__main__":
     yolo = DataHandler()

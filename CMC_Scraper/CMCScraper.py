@@ -1,10 +1,8 @@
-from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
 from DataHandler import DataHandler
-from io import StringIO
+from pathlib import Path
 from sqlalchemy import create_engine
-import awswrangler as wr
-import boto3
+import json
 import logging
 import os
 import pandas as pd
@@ -27,6 +25,7 @@ class CMCScraper(DataHandler):
     
     
     def __init__(self):
+        #Define logging parameters: currently configured to display info and above on the console
         logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M',
@@ -117,6 +116,7 @@ class CMCScraper(DataHandler):
         path argument = the path to save the file once retrieved (the file name is modified for every unique image). 
         '''
         logging.info('__save_images_from_webpage method called')
+        path=str(path)
         len_path = len(path)
         #loop to iterate through the image list, using enumerate method to rename the file after every iteration
         for image in image_list:
@@ -156,12 +156,10 @@ class CMCScraper(DataHandler):
         print(dataframe)
         return dataframe
 
-    def get_more_image_data(self, folder_path:str, bucket_name:str, Key:str):
-        # create client instance
-        s3 = boto3.client('s3')
-        #create csv object obtained from s3
-        csv_obj = s3.get_object(Bucket=bucket_name, Key=Key)
-        #turn csv object into df
+    def get_more_image_data(self, local_folder_path:str, bucket_name:str, s3_csv_file_name:str, s3):
+       # create csv object obtained from s3
+        csv_obj = s3.get_object(Bucket=bucket_name, Key=s3_csv_file_name)
+       # turn csv object into df
         df_of_s3 = pd.read_csv(csv_obj['Body'])
         #print contents of df
         print(f'all_s3: {df_of_s3}')
@@ -170,19 +168,12 @@ class CMCScraper(DataHandler):
         print(f'oustanding webpages to scrape: {outstanding_webpages}')
         #create dataframe of all the newly-scraped data
         new_data_dataframe = self.save_images_from_multiple_webpages(outstanding_webpages, len(outstanding_webpages), r"C:\Users\marko\DS Projects\Data\Crypto_images")
-        #create UUID dictionary
-        list_of_df= new_data_dataframe.values.tolist()
-        Dictionary = DataHandler.crypto_data_UUID_list_dictionary(list_of_df)
-        #append UUID dictionary to pre-existing dictionary
-        DataHandler.update_JSON_dictionary(Dictionary, r"C:\Users\marko\DS Projects\Data\Crypto_images\images_dict.json")
         #use this method to update the dataframe
         DataHandler.save_dataframe_locally(new_data_dataframe, r"C:\Users\marko\DS Projects\Data\Crypto_images\crypto_images.csv", header_choice=False)
-        #upload updated JSON dictionary to s3
-        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\Crypto_images\images_dict.json", bucket_name)
         #upload updated .csv file to s3
-        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\Crypto_images\crypto_images.csv", bucket_name)
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\Crypto_images\crypto_images.csv", bucket_name, s3)
         #re-upload any freshly scraped image data
-        DataHandler.upload_folder_to_S3(folder_path, 'cmc-bucket-mo')
+        DataHandler.upload_folder_to_S3(local_folder_path, 'cmc-bucket-mo', s3)
     
         
     def __scrape_items_from_row(self):   
@@ -396,43 +387,25 @@ class CMCScraper(DataHandler):
         return comparison
     
     def upload_tabular_data_to_pre_existing_RDS(self, 
-                                        RDS_table_name:str):
+                                        RDS_table_name:str, 
+                                        engine):
         '''This method compares data on an RDS table to all available entries, and in doing ensures that only records which are outstanding are
         scraped and appended to the database. 
 
         syntax: upload_data_to_pre_existing_RDS(RDS_table_name:str)
 
-        Takes 1 argument
+        Takes 2 arguments
         RDS_table_name = the RDS table to compare to and append only required entries 
+        engine = engine for RDS connection
         
         '''
-        DATABASE_TYPE = 'postgresql'
-        DBAPI = 'psycopg2'
-        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
-        USER = 'postgres'
-        PASSWORD = 'ABC123!!'
-        PORT = 5432
-        DATABASE = 'postgres'
-        #assemble connection credentials
-        engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
-        #connect to RDS
-        engine.connect()
-        #reads the sql table and converts to dataframe
-        sql_df = pd.read_sql_table(RDS_table_name, engine) 
-        print(f'sql_df: {sql_df}')
-        outstanding_webpages = self.get_outstanding_webpages(sql_df)
-        #retrieves the remaining data to be scraped
-        get_remaining_data = self.get_crypto(outstanding_webpages, len(outstanding_webpages))
-        #Creates a dataframe of the freshly-scraped data
-        df_of_fresh_data = DataHandler.create_dataframe(get_remaining_data, "ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change")
-        print(f'df of fresh data {df_of_fresh_data}')
-        #uploads to RDS
-        df_of_fresh_data.to_sql(RDS_table_name, engine, if_exists='append', index= False)
+        
+        
         return df_of_fresh_data
         
-    def get_more_tabular_data(self, RDS_table_name:str):
+    def get_more_tabular_data(self, RDS_table_name:str, bucket_name:str, engine, s3):
         logging.info('getting df of tabular')                                
-        df_of_fresh_data = self.upload_tabular_data_to_pre_existing_RDS(RDS_table_name)
+        df_of_fresh_data = self.upload_tabular_data_to_pre_existing_RDS(RDS_table_name, engine)
         #update .csv of tabular data locally 
         DataHandler.save_dataframe_locally(df_of_fresh_data, r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv")
         #make uuid dict of exixting data
@@ -441,15 +414,30 @@ class CMCScraper(DataHandler):
         #update dictionary JSON locally
         DataHandler.update_JSON_dictionary(dictionary_of_new_data, r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.json")
         #upload fresh files replacing the others
-        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'cmc-bucket-mo')
-        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.json", 'cmc-bucket-mo')
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", s3)
+        DataHandler.rewrite_s3_file(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.json", s3)
 
 if __name__ =="__main__":
-    #globals()[sys.argv[1]](sys.argv[2])
-    CMCScraper_inst = CMCScraper()
-    CMCScraper_inst.upload_table_from_csv_to_RDS(r"C:\Users\marko\DS Projects\Data\crypto_tabular_data.csv", 'crypto_tabular_data')
-    CMCScraper_inst.get_more_tabular_data('crypto_tabular_data')
-    
+     CMCScraper_inst = CMCScraper()
+     with open('credentials.json') as cred:
+            credentials = json.load(cred)
+            DATABASE_TYPE = credentials['DATABASE_TYPE']
+            DBAPI = credentials['DBAPI']
+            USER = credentials['USER']
+            PASSWORD = credentials['PASSWORD']
+            ENDPOINT = credentials['ENDPOINT']
+            PORT = credentials['PORT']
+            DATABASE = credentials['DATABASE']
+            AWS_ACCESS_KEY_ID= credentials['AWS_ACCESS_KEY_ID']
+            AWS_SECRET_ACCESS_KEY= credentials['AWS_SECRET_ACCESS_KEY'] 
+
+
+     print('CMCScraper called')
+     engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
+     s3_client = CMCScraper_inst.create_s3_client(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+     CMCScraper_inst.get_more_image_data(Path("/Data/Crypto_images", 'cmc-bucket-mo', 'crypto_images.csv'))
+     #CMCScraper_inst.get_more_tabular_data('crypto_tabular_data', 'cmc-bucket-mo', engine)
+    #print(sys.path)
     
 
     
