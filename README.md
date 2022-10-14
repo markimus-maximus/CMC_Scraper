@@ -77,9 +77,9 @@ The `get_crypto(url_list:list, num_pages=None)` method uses all of the crypto sc
 6. Converting data to a dataframe.  
 The method `create_dataframe(list_for_dataframe:list, *headings)` takes the list of lists generated above and converts to a dataframe. The list of lists is taken as an argument and a flexible number of headings can be optionally passed as arguments.
 <img width="587" alt="image" src="https://user-images.githubusercontent.com/107410852/194768649-a52bfc34-2947-46b3-b2d0-6fd55fe5e031.png">
-Example of a dataframe generated using the above methods
+Example of a dataframe generated using the above methods 
 7. Creating a dictionary of records.  
-Using the method `create_uuid_list(list_length:int)`, a UUID is generated using `str(uuid.uuid4())` syntax. The length of the UUID list is given as an argument to the method. After this uuid list object has been generated, the method `create_dict_from_2_lists(list_1:list, list_2:list)` takes the UUID list and the crypto data list of lists to make a dicitionary.
+Using the method `create_uuid_list(list_length:int)`, a UUID is generated using `str(uuid.uuid4())` syntax. The length of the UUID list is given as an argument to the method. After this uuid list object has been generated, the method `create_dict_from_2_lists(list_1:list, list_2:list)` takes the UUID list and the crypto data list of lists to make a dicitionary.  
 8. Store the data locally.  
 The dataframe object generated in number 6 can be converted to a `.csv` file using the `save_dataframe_locally(dataframe, path:str)` method which takes the dataframe object and the path for the .csv file as arguments, thus saving these data locally. Additionally, the `turn_data_into_file(path:str, data_to_convert_into_file)` method saves the dictionary from point 7 into a `.json` file, again saving this locally based on a provided path.  
 **Image data**
@@ -177,15 +177,32 @@ RUN pip3 install -r requirements.txt
 CMD ["python3", "__main__.py"]
 ~~~
 
-- The docker container was built using the syntax `docker build -t docker build -t markimusmaximus/cmc_scraper_1 .`
+- The docker container was built using the syntax `docker build -t docker build -t markimusmaximus/cmc_scraper_1 .` 
 
-`docker push [OPTIONS] NAME[:TAG]`
+The docker image was pushed to dockerhub with `docker push [OPTIONS] NAME[:TAG]`
 
-The image is run directly from the CLI.
-docker run -it --rm \
+-The image was ran directly from the CLI.
+`docker run -it --rm \`
 
+## Milestone 7.2: Running the scraper on a cloud computer
+An Elastic Cloud Computing (EC2) instance was established on the AWS platform to run the scraper program remotely. The operating system chosen was `Amazon Linux 2 AMI` with `t2-micro` instance type. 
+- A security group was established and configure as below:
+   - HTTP: Anywhere IPv4
+	- HTTPS: Anywhere IPv4
+   - SSH: My IP
+- An ssh key pair was generated to authenticate the connection. The priveleges were changed in the terminal to 'read only' using the syntax `chmod 400 <key.pem>` 
+- To connect to the EC2 instance through the CLI, `ssh -i /Users/asadiceccarelli/Documents/AiCore/aicorekey.pem ec2-user@<public-dns>` was used.
+- To add the directory of the scraper to the EC2 instance, `scp -i <path/ec2_key.pem> -r <directory path> /home/ec2-user` was run
+- Docker was then installed to this EC2 instance 
+~~~
+sudo yum update -y
+sudo amazon-linux-extras install docker
+sudo service docker start
+sudo systemctl enable docker
+~~~
+- The scraper image was pulled from dockerhub by using `docker run` again.
 
-
+## Milestone 8: Monitoring and alerting
 
 
 
