@@ -8,9 +8,11 @@ Milestone 2: Generating a list of unique URLs for each webpage
 Milestone 3: Retrieving data from each webpage
 Milestone 4: Refining and testing
 Milestone 5: Scalably storing the data 
-Milestone 6: 
-Milestone 7:
-
+Milestone 6: Preventing rescraping and getting more data
+Milestone 7.1: Containerising the scraper
+Milestone 7.2: Running the scraper on a cloud computer
+Milestone 8: Monitoring and alerting
+Milestone 9: Setting up a CI/CD pipeline for the docker image
 
 ## Milestone 1: Deciding the website to scrape
 -	The aim of this project is to collect data crypto currency data and using this data to characterise factors which may impact cryptocurrency market standing.
@@ -132,9 +134,50 @@ file_name = str(ntpath.basename(file_path))
             s3.upload_file(file_path, bucket, object_name) 
             logging.info(f'{file_name} uploaded')
 ~~~
-The above code was used in the uploading of both single files and an entire folder. In addition to the elements, rescraping could be prevented by converting the master .csv files (both in s3 bucket and local) to dataframes and using the `drop_duplicates(subset='ID')` method fom the  pandas library.
+The above code was used in the uploading of both single files and an entire folder. In addition to these approaches, rescraping is prevented by converting the master .csv files (both in s3 bucket and local) to dataframes and using the `drop_duplicates(subset='ID')` method fom the  pandas library.
 
-In terms of tabular data data
+In terms of tabular data, rescraping was similarly implemented by using the `get_all_available_webpages()` method to get only fresh data and preclude scraping of any unnecessary data, and accordingly that the RDS does not contain duplicate data. As a failsafe, the `drop_duplicates(subset='ID')` method fom the pandas library ensures that no duplicates are re-added to the RDS.  An altrnative strategy to preventing rescraping would be to create a SQL query with the `psycopg2` library:
+`with conn.cursor() as cur: 
+                     ~~~
+                    # check if the record exists using unique ID. If it does then do nothing, if it doesn't then upload the new record. 
+                    cur.execute("SELECT ID FROM crypto_tabular_data WHERE ID=%s",(ID,))`
+                    ~~~
+This approach was not selected here since the other approach generates and updates .csv files which can be stored both locally and on the cloud as backup master copies.
+
+## Milestone 7.1: Containerising the scraper  
+In order to easily facilitate running of the scraper on any machine, the scraper and all files were containerised into a docker image. A `__main__.py` file was created which would run the necessary methods from the `CMCScraper.py` and `DataHandler.py` classes in order to run the scraper from a container. A requirements.txt file was also created to allow for dependencies to be installed on the image. A credentials JSON file was created which holds all of the authentication data for connecting to RDS and s3 databases.
+
+- A docker file was created with the instructions to build the container (below). `Ubuntu` was taken as the base image, and the scraper folder was copied to the image.
+
+~~~
+FROM ubuntu:latest
+
+RUN apt update
+RUN apt install python3 -y
+RUN set -xe \
+    && apt-get update -y \
+    && apt-get install -y python3-pip
+
+COPY . .
+
+RUN pip3 install --upgrade pip
+
+RUN pip3 install -r requirements.txt
+
+CMD ["python3", "__main__.py"]
+~~~
+
+- The docker container was built using the syntax `docker build -t docker build -t markimusmaximus/cmc_scraper_1 .`
+
+`docker push [OPTIONS] NAME[:TAG]`
+
+The image is run directly from the CLI.
+docker run -it --rm \
+
+
+
+
+
 
 
 
