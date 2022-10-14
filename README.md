@@ -3,16 +3,26 @@
 
 My third project for AiCore. Webscraping coinmarketcap.com for cryptocurrency data.
 The milestones in this project are below:  
-Milestone 1: Deciding the website to scrape
-Milestone 2: Generating a list of unique URLs for each webpage
-Milestone 3: Retrieving data from each webpage
-Milestone 4: Refining and testing
-Milestone 5: Scalably storing the data 
-Milestone 6: Preventing rescraping and getting more data
-Milestone 7.1: Containerising the scraper
-Milestone 7.2: Running the scraper on a cloud computer
-Milestone 8: Monitoring and alerting
-Milestone 9: Setting up a CI/CD pipeline for the docker image
+Milestone 1: Deciding the website to scrape  
+
+Milestone 2: Generating a list of unique URLs for each webpage  
+
+Milestone 3: Retrieving data from each webpage  
+
+Milestone 4: Refining and testing  
+
+Milestone 5: Scalably storing the data  
+
+Milestone 6: Preventing rescraping and getting more data  
+
+Milestone 7.1: Containerising the scraper  
+
+Milestone 7.2: Running the scraper on a cloud computer  
+
+Milestone 8: Monitoring and alerting  
+
+Milestone 9: Setting up a CI/CD pipeline for the docker image  
+
 
 ## Milestone 1: Deciding the website to scrape
 -	The aim of this project is to collect data crypto currency data and using this data to characterise factors which may impact cryptocurrency market standing.
