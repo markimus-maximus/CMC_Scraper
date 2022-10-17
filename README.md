@@ -208,6 +208,7 @@ sudo systemctl enable docker
 
 
 
+<img width="736" alt="image" src="https://user-images.githubusercontent.com/107410852/196185548-c45b90f3-e70f-431c-80ed-7307a34f3a02.png">
 
 
 
