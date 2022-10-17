@@ -192,8 +192,8 @@ An Elastic Cloud Computing (EC2) instance was established on the AWS platform to
    - SSH: My IP
 - An ssh key pair was generated to authenticate the connection. The priveleges were changed in the terminal to 'read only' using the syntax `chmod 400 <key.pem>` 
 - To connect to the EC2 instance through the CLI, `ssh -i /Users/asadiceccarelli/Documents/AiCore/aicorekey.pem ec2-user@<public-dns>` was used.
-- To add the directory of the scraper to the EC2 instance, `scp -i <path/ec2_key.pem> -r <directory path> /home/ec2-user` was run
-- Docker was then installed to this EC2 instance 
+- To add the directory of the scraper to the EC2 instance, `scp -i <path/ec2_key.pem> -r <directory path> /home/ec2-user` was run.
+- Docker was then installed to this EC2 instance
 ~~~
 sudo yum update -y
 sudo amazon-linux-extras install docker
@@ -201,6 +201,8 @@ sudo service docker start
 sudo systemctl enable docker
 ~~~
 - The scraper image was pulled from dockerhub by using `docker run` again.
+-In order to call the scraper at regular intervals on the EC2 instance, a cronjob was established in the EC2 instance OS. To create and configure the cronjob, `cronjob -e` was run in the CLI.
+-To set the timing to 10:30 every day, the cronjob was edited in vim editor as follows `30 10 * * *`
 
 ## Milestone 8: Monitoring and alerting
 
