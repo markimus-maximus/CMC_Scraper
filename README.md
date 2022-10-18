@@ -206,8 +206,49 @@ sudo systemctl enable docker
 
 ## Milestone 8: Monitoring and alerting
 
+Prometheus allows real time montoring of various programmatic metrics by pulling data from the apllication of interest at specific time-intervals, and coupling these data with time stamps. Similarly to the scraper files, the prometheus was containerised on the same EC2 instance. The prometheus config file was written as follows:
+~~~
+global:
+  scrape_interval: 15s 
+  
+  external_labels:
+    monitor: 'codelab-monitor'
 
+scrape_configs:
+  
+  - job_name: 'prometheus'
+    
+    scrape_interval: '5s'
+    static_configs:
+      - targets: ['localhost:9090', '<EC2 instance IP:9090']
 
+  - job_name: 'docker'
+    
+    scrape_interval: '5s'
+    static_configs:
+      - targets: ['<Docker IP>:9323']
+      ~~~
+- Permissions of the EC2 instance were modified such that port 9090 was accessible as shown in the image below:
+<img width="680" alt="image" src="https://user-images.githubusercontent.com/107410852/196372807-4f78fe83-9213-4f48-a12a-4946e4ce405b.png">
+
+The prometheus container was run with the following command in the CLI: 
+
+~~~
+	sudo docker run --rm -d \
+    --network=host \
+    --name prometheus\
+    -v /path/to/prometheus.yml:/etc/prometheus/prometheus.yml \
+    prom/prometheus \
+    --config.file=/etc/prometheus/prometheus.yml \
+    --web.enable-lifecycle 
+	~~~
+-d: runs the container in detached mode. This runs the container in the background (terminal not occupied by the cotainer).
+-rm: removes the container when the process is killed.
+-network=host: configures the ports on the local machine with the ports inside the Docker container (when localhost host is specified in prometheus.yml).
+--name: name of the container.
+-v: mounts the prometheus config in the container to your local config, allowing post-hoc configurations.
+--config.file: the Docker container path for the prometheus.yml config file.
+	
 <img width="736" alt="image" src="https://user-images.githubusercontent.com/107410852/196185548-c45b90f3-e70f-431c-80ed-7307a34f3a02.png">
 
 
