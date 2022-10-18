@@ -197,7 +197,7 @@ class CMCScraperTestCase(unittest.TestCase):
                                         Mock_upload_file_to_s3: Mock, 
                                         Mock_upload_folder_to_S3: Mock,
                                         Mock_upload_table_from_csv_to_RDS: Mock):
-        '''Tests that files are uploaded to S3 bucket correctly and in the right numbers. Also checks that other methods which interact with 
+        '''Tests that files are uploaded to S3 bucket correctly and in the right numbers. Also checks that this method and other methods which interact with 
         the cloud are called once. '''
         #Check methods called once
         assert Mock_upload_file_to_s3.called_once
