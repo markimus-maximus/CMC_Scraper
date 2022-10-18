@@ -1,7 +1,7 @@
 
 # Data Collection Pipeline Project- Coin Market Cap Web Scraper
 
-My third project for AiCore. Webscraping coinmarketcap.com for cryptocurrency data.
+My third project with the aiCore workflow was to design and implement a data collection pipeline. To acquire data a webscraper was written to scrape coinmarketcap.com for cryptocurrency data.
 The milestones in this project are below:  
 Milestone 1: Deciding the website to scrape  
 
