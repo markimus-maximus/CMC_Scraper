@@ -254,6 +254,62 @@ The prometheus container was run with the following command in the CLI:
 - Grafana was used to aggregate prometheus metrics into an at-a-glance dashboard. Below is an example dashboard while the scraper was running in the EC2 instance.
 <img width="693" alt="image" src="https://user-images.githubusercontent.com/107410852/196400100-eff13994-6386-4506-bbe9-bfe63d0c46cb.png">
 
+## Milestone 9: Setting up a CI/CD pipeline for the docker image  
+Continuous integration (CI) of software ensures that changes can be integrated from mutltiple contributors, while coninuous deployment allows for integration of many small changes over time as opposed to infrequent large changes which could be associated with difficulties such as unforeseen bugs or end-user difficulties due to too many changes at once.  
+- Github Actions provides a tool to facilitate a CI/CD pipeline by integrating automated actions once a particular event has occurred. For example, this could be updating a server every time new code of a particular script has been uploaded to GitHub. Using Github Actions, a new Docker image was instructed to be generated and pushed to Dockerhub every time a new push occurred in the associated repository. 
+- To keep Docker hub credentials private, Github Secrets was utilised in which the appropriate information was stored. 
+- The .yaml file which configures the Github Action:
+~~~
+name: CI
+
+#triggers jobs on
+on: 
+#when a push happens
+  push:
+#on the master branch
+    branches:
+      - 'master'
+  #OR triggers jobs when dispatched manually
+  workflow_dispatch:
+#The jobs which are carried out
+jobs: 
+#how it's executed
+  build:
+  #local virtual machine running ubuntu 
+    runs-on: ubuntu-latest
+    #steps to be carried out
+    steps:
+    -
+      name: Checkout
+      uses: functions/checkout@v2
+    -
+      name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+    -
+      name: Set up Docker Build
+      uses: docker/setup-build-action@v1
+    -
+      name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ../CMC_Scraper/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/cmc_scraper_1:latest~~~
+	
+- The EC2 instance which runs the docker scraper image was operated with a crontab file (written in vim editor in the CLI) in order to run the scraper on the instance at a regular time interval. A job was written to run the docker image and another to ensure that all images had been removed from the server consequently.
+
+~~~
+0 16 * * * sudo docker run --rm <dockerhub_identifier>:latest
+30 16 * * * sudo docker ps -aq~~~
+
+
+
+
+
 
 
 
