@@ -1,0 +1,8 @@
+BeautifulSoup4
+boto3
+datetime
+pandas
+psycopg2-binary
+requests
+selenium
+sqlalchemy 

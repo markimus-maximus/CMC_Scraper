@@ -137,7 +137,8 @@ class DataHandler:
     def save_dataframe_locally( dataframe, 
                                 path_for_csv:str,
                                 header_choice=False,
-                                index_choice=False):
+                                index_choice=False,
+                                mode_choice='a'):
 
         '''This method converts a dataframe to csv which is saved locally. If file already exists, the data gets concatenated 
         
@@ -149,7 +150,7 @@ class DataHandler:
         path = path to be store the dataframe including .csv file extension
         header_choice = Since this method is in append mode, it is to be decided whether this method needs to append a header or not. False by default.]
         index_choice = Choose whether to include index, false by default '''
-        return dataframe.to_csv(path_or_buf=path_for_csv, mode='a', index=index_choice, header=header_choice)
+        return dataframe.to_csv(path_or_buf=path_for_csv, mode = mode_choice, index=index_choice, header=header_choice)
         
 
     @staticmethod
@@ -230,7 +231,7 @@ class DataHandler:
 
     @staticmethod
     def upload_file_to_s3(  file_path:str, 
-                            bucket:str,
+                            bucket_name:str,
                             s3,
                             object_name=None,
                             ):
@@ -239,10 +240,11 @@ class DataHandler:
 
         syntax: upload_file_to_s3(file_path:str, bucket:str, object_name=None)
         
-        Takes 2 arguments and one optional argument 
+        Takes 3 arguments and one optional argument 
         file_name: File to upload (directory)
-        bucket: Bucket to upload to (bucket name)
-        object_name: S3 object name, the name you want to give the file. If not specified then file_name is used
+        bucket_name: Bucket to upload to 
+        s3 = the s3 client instance
+        object_name: the name you want to give the file. If not specified then file_name is used
         return: True if file was uploaded, else False
         """
         file_name = str(ntpath.basename(file_path))
@@ -250,30 +252,29 @@ class DataHandler:
         # If S3 object_name was not specified, use file_name
         if object_name is None:
             object_name = file_name 
-        
-        #Get S3 contents and norrow down by Prefix=file_name
-        already_uploaded = s3.list_objects_v2(Bucket=bucket, Prefix=file_name)
+        #Get S3 contents and narrow down by Prefix=file_name
+        already_uploaded = s3.list_objects_v2(Bucket=bucket_name, Prefix=file_name)
         #Convert path data type to str, needed for below
         file_path = str(file_path)
         #If 'Contents' exists in the search then there must be a match
         if 'Contents' in already_uploaded:
              print(f'{file_name} already in bucket, file not uploaded')
         elif 'Content' not in already_uploaded:
-            s3.upload_file(file_path, bucket, object_name) 
+            s3.upload_file(file_path, bucket_name, object_name) 
             logging.info(f'{file_name} uploaded')
         
     @staticmethod
     def upload_folder_to_S3(folder_path:str, 
-                            bucket:str,
+                            bucket_name:str,
                             s3):
         """This method uploads a folder to an S3 bucket
 
         syntax: upload_folder_to_s3(folder_path:str, bucket:str)
         
-        Takes 2 arguments 
-        folder_name: folder to upload (directory)
-        bucket: bucket to upload to (bucket name)
-        return: True if file was uploaded, else False
+        Takes 3 arguments 
+        file_name: File to upload (directory)
+        bucket_name: Bucket to upload to 
+        s3 = the s3 client instance
         """
         #Convert folder path to strt, needed for later
         folder_path = str(folder_path)
@@ -283,17 +284,17 @@ class DataHandler:
                 file =str(file)
                 logging.info(f'{file} check') 
                 #Get S3 contents and norrow down by Prefix=file_name
-                already_uploaded = s3.list_objects_v2(Bucket=bucket, Prefix=file)
+                already_uploaded = s3.list_objects_v2(Bucket=bucket_name, Prefix=file)
                 #If 'Contents' exists in the search then file must already exist
                 if 'Contents' in already_uploaded:
                     print(f'{file} already in bucket, no file uploaded') 
                 elif 'Contents' not in already_uploaded:
-                    s3.upload_file(os.path.join(root, file), bucket, file)
+                    s3.upload_file(os.path.join(root, file), bucket_name, file)
                     logging.info(f'{file} uploaded')
     
     @staticmethod
     def rewrite_s3_file(    file_path:str, 
-                            bucket:str, 
+                            bucket_name:str, 
                             s3,
                             object_name=None,
                             ):
@@ -303,11 +304,11 @@ class DataHandler:
 
         syntax: upload_file_to_s3(file_path:str, bucket:str, object_name=None)
         
-        Takes 2 arguments and one optional argument 
+        Takes 3 arguments and one optional argument 
         file_name: File to upload (directory)
-        bucket: Bucket to upload to (bucket name)
-        object_name: S3 object name, the name you want to give the file. If not specified then file_name is used
-        return: True if file was uploaded, else False
+        bucket_name: Bucket to upload to 
+        s3 = the s3 client instance
+        object_name: the name you want to give the file. If not specified then file_name is used
         """
         file_name = str(ntpath.basename(file_path))
         
@@ -315,7 +316,7 @@ class DataHandler:
         if object_name is None:
             object_name = file_name
         # Create instance of S3 
-        s3.upload_file(file_path, bucket, object_name) 
+        s3.upload_file(file_path, bucket_name, object_name) 
         logging.info(f'{file_name} uploaded') 
 
     @staticmethod
@@ -354,7 +355,7 @@ class DataHandler:
         name_of_table = the name of the  table from RDS to get contents of '''
         DATABASE_TYPE = 'postgresql'
         DBAPI = 'psycopg2'
-        ENDPOINT = 'testaroo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com'
+        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com'
         USER = 'postgres'
         PASSWORD = 'ABC123!!'
         PORT = 5432
@@ -420,14 +421,6 @@ class DataHandler:
         return(into_dataframes)
 
     def create_engine_RDS(self, engine_credentials):
-        DATABASE_TYPE = 'postgresql'
-        DBAPI = 'psycopg2'
-        ENDPOINT = 'cmc-scraper-mo.c4ojkdkakmcp.eu-west-2.rds.amazonaws.com' 
-        USER = 'postgres'
-        PASSWORD = 'ABC123!!'
-        PORT = 5432
-        DATABASE = 'postgres'
-        #assemble connection credentials
         engine = create_engine(engine_credentials)
         #connect to RDS
         return engine.connect()
@@ -439,6 +432,7 @@ class DataHandler:
         # Create instance of S3 client 
         s3_client = boto3.client('s3', aws_access_key_id= AWS_ACCESS_KEY_ID, aws_secret_access_key= AWS_SECRET_ACCESS_KEY)
         return s3_client
+
 
 if __name__ =="__main__":
     yolo = DataHandler()

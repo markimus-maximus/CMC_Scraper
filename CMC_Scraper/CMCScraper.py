@@ -400,8 +400,23 @@ class CMCScraper(DataHandler):
         
         '''
         
-        
+        #assemble connection credentials
+        engine = create_engine(f"{DATABASE_TYPE}+{DBAPI}://{USER}:{PASSWORD}@{ENDPOINT}:{PORT}/{DATABASE}")
+        #connect to RDS
+        engine.connect()
+        #reads the sql table and converts to dataframe
+        sql_df = pd.read_sql_table(RDS_table_name, engine) 
+        print(f'sql_df: {sql_df}')
+        outstanding_webpages = self.get_outstanding_webpages(sql_df)
+        #retrieves the remaining data to be scraped
+        get_remaining_data = self.get_crypto(outstanding_webpages, len(outstanding_webpages))
+        #Creates a dataframe of the freshly-scraped data
+        df_of_fresh_data = DataHandler.create_dataframe(get_remaining_data, "ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change")
+        print(f'df of fresh data {df_of_fresh_data}')
+        #uploads to RDS
+        df_of_fresh_data.to_sql(RDS_table_name, engine, if_exists='append', index= False)
         return df_of_fresh_data
+        
         
     def get_more_tabular_data(self, RDS_table_name:str, bucket_name:str, engine, s3):
         logging.info('getting df of tabular')                                
