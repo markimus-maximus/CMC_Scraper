@@ -142,8 +142,7 @@ file_name = str(ntpath.basename(file_path))
              print(f'{file_name} already in bucket, file not uploaded')
         elif 'Content' not in already_uploaded:
             s3.upload_file(file_path, bucket, object_name) 
-            logging.info(f'{file_name} uploaded')
-~~~
+            logging.info(f'{file_name} uploaded')~~~
 The above code was used in the uploading of both single files and an entire folder. In addition to these approaches, rescraping is prevented by converting the master .csv files (both in s3 bucket and local) to dataframes and using the `drop_duplicates(subset='ID')` method fom the  pandas library.
 
 In terms of tabular data, rescraping was similarly implemented by using the `get_all_available_webpages()` method to get only fresh data and preclude scraping of any unnecessary data, and accordingly that the RDS does not contain duplicate data. As a failsafe, the `drop_duplicates(subset='ID')` method fom the pandas library ensures that no duplicates are re-added to the RDS.  An altrnative strategy to preventing rescraping would be to create a SQL query with the `psycopg2` library:
@@ -181,7 +180,7 @@ CMD ["python3", "__main__.py"]
 
 The docker image was pushed to dockerhub with `docker push [OPTIONS] NAME[:TAG]`
 
--The image was ran directly from the CLI.
+-The image was run directly from the CLI.
 `docker run -it --rm \`
 
 ## Milestone 7.2: Running the scraper on a cloud computer
@@ -206,7 +205,7 @@ sudo systemctl enable docker
 
 ## Milestone 8: Monitoring and alerting
 
-Prometheus allows real time montoring of various programmatic metrics by pulling data from the apllication of interest at specific time-intervals, and coupling these data with time stamps. Similarly to the scraper files, the prometheus was containerised on the same EC2 instance. The prometheus config file was written as follows:
+Prometheus allows real time montoring of various programmatic metrics by pulling data from the apllication of interest at specific time-intervals, and coupling these data with time stamps. This can be accessed by specifying the IP address and the port in a web browser. Similarly to the scraper files, prometheus was containerised on the same EC2 instance. The prometheus config file was written as follows:
 ~~~
 global:
   scrape_interval: 15s 
@@ -226,13 +225,17 @@ scrape_configs:
     
     scrape_interval: '5s'
     static_configs:
-      - targets: ['<Docker IP>:9323']
-      ~~~
+      - targets: ['<Docker IP>:9323']~~~
 - Permissions of the EC2 instance were modified such that port 9090 was accessible as shown in the image below:
 <img width="680" alt="image" src="https://user-images.githubusercontent.com/107410852/196372807-4f78fe83-9213-4f48-a12a-4946e4ce405b.png">
 
+- Node exporter is a single static binary that facilitates tracking metrics from the local OS system. This was set up in the CLI with the following:
+~~~
+wget https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-amd64.tar.gz
+tar xvfz node_exporter-1.1.2.linux-amd64.tar.gz
+rm node_exporter-1.1.2.linux-amd64.tar.gz~~~
+- ode exporter was run in the CLI with `./node_exporter-1.1.2.linux-amd64/node_exporter`  
 The prometheus container was run with the following command in the CLI: 
-
 ~~~
 	sudo docker run --rm -d \
     --network=host \
@@ -240,16 +243,17 @@ The prometheus container was run with the following command in the CLI:
     -v /path/to/prometheus.yml:/etc/prometheus/prometheus.yml \
     prom/prometheus \
     --config.file=/etc/prometheus/prometheus.yml \
-    --web.enable-lifecycle 
-	~~~
--d: runs the container in detached mode. This runs the container in the background (terminal not occupied by the cotainer).
--rm: removes the container when the process is killed.
--network=host: configures the ports on the local machine with the ports inside the Docker container (when localhost host is specified in prometheus.yml).
---name: name of the container.
--v: mounts the prometheus config in the container to your local config, allowing post-hoc configurations.
---config.file: the Docker container path for the prometheus.yml config file.
+    --web.enable-lifecycle ~~~
+-d: runs the container in detached mode. This runs the container in the background (terminal not occupied by the cotainer).  
+-rm: removes the container when the process is killed.  
+-network=host: configures the ports on the local machine with the ports inside the Docker container (when localhost host is specified in prometheus.yml).  
+--name: name of the container.  
+-v: mounts the prometheus config in the container to your local config, allowing post-hoc configurations.  
+--config.file: the Docker container path for the prometheus.yml config file.  
 	
-<img width="736" alt="image" src="https://user-images.githubusercontent.com/107410852/196185548-c45b90f3-e70f-431c-80ed-7307a34f3a02.png">
+- Grafana was used to aggregate prometheus metrics into an at-a-glance dashboard. Below is an example dashboard while the scraper was running in the EC2 instance.
+<img width="693" alt="image" src="https://user-images.githubusercontent.com/107410852/196400100-eff13994-6386-4506-bbe9-bfe63d0c46cb.png">
+
 
 
 
