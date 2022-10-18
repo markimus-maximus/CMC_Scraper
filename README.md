@@ -1,5 +1,5 @@
 
-# Data Collection Pipeline Project- Coin Market Cap 
+# Data Collection Pipeline Project- Coin Market Cap Web Scraper
 
 My third project for AiCore. Webscraping coinmarketcap.com for cryptocurrency data.
 The milestones in this project are below:  
