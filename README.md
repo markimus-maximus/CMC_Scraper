@@ -31,7 +31,7 @@ Milestone 9: Setting up a CI/CD pipeline for the docker image
     *	Rich historical data dating back to April 2013 providing greater potential for insights. 
     * Consistent structure of historical data allows for consistent scraping of data between urls.
     * Relatively simple website without need for login or cookies bypass.
--	In combination with pre-determined urls the Requests package will be imported to access webpages.
+-	In combination with pre-determined urls the `Requests` package was imported to access webpages.
 -	Git branches were generated locally before being pushed to github.
 - Assetions were used to monitor scraper progress and return errors if the scraper's behaviour was not as expected.
 -	Logging was implemented to record events and store these events in a log file. Additionally, the events are printed to the console to track the status of the scraper as it runs. Usage of logging as opposed to print statements makes post-hoc tracking much easier and keeps a record for later reference.  Below are the logger configuration settings. Using StreamHandler in conjunction with sys facilitated printing to the console in addition to recording in a log.
