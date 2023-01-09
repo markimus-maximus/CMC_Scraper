@@ -31,7 +31,7 @@ Milestone 9: Setting up a CI/CD pipeline for the docker image
     *	Rich historical data dating back to April 2013 providing greater potential for insights. 
     * Consistent structure of historical data allows for consistent scraping of data between urls.
     * Relatively simple website without need for login or cookies bypass.
--	In combination with pre-determined urls the `Requests` package was imported to access webpages.
+-	In combination with pre-determined urls the `requests` package was imported to access webpages.
 -	Git branches were generated locally before being pushed to github.
 - Assetions were used to monitor scraper progress and return errors if the scraper's behaviour was not as expected.
 -	Logging was implemented to record events and store these events in a log file. Additionally, the events are printed to the console to track the status of the scraper as it runs. Usage of logging as opposed to print statements makes post-hoc tracking much easier and keeps a record for later reference.  Below are the logger configuration settings. Using StreamHandler in conjunction with sys facilitated printing to the console in addition to recording in a log.
@@ -57,8 +57,8 @@ The code for the scraper has been split into 3 components. The CMCScraper class 
 
 ## Milestone 2: Generating a list of unique URLs for each webpage
 
-- Given that coinmarketcap URLs are structured such that the permalink contains a date, this allowed for generation of unique URLs based on the date. To achieve this, the `daterange(start_date:str, end_date:str, frequency:int=None` method was built which used the pandas library to generate a date range between 2 dates given to by the user. The strftime method was implemented to reformat the date to be used as a permalink. Additionally, slicing the daterange provides the user the optional opportunity to choose a frequency of dates (default frequency is daily)
-- After generation of the desired daterange, the `__create_url_list_with_date_permalinks(root_url:str, date_list:list)` private method concatenates the dates (formatted as cmc permalinks) to a root URL using the private in order to generate a list of unique URLs which would be compatible with coinmarket cap.
+- The fact that coinmarketcap URLs are structured such that the permalink contains a date this allowed for generation of unique URLs based on the date. To generate the list of URLs, the `daterange(start_date:str, end_date:str, frequency:int=None` method was built which used the pandas library to generate a date range between 2 dates given to by the user. The `strftime` method was implemented to reformat the date to be used as a permalink. Additionally, slicing the daterange provides the user the optional opportunity to choose a frequency of dates by declaring the `frequency` argument (default frequency is daily).
+- After generation of the desired daterange, the `__create_url_list_with_date_permalinks(root_url:str, date_list:list)` private method concatenates the dates (formatted as cmc permalinks) to a root URL thus generating a list of unique URLs which would be compatible with coinmarket cap.
 - The `create_url_list_final(start_date:str, end_date:str, frequency:int, root_url:str` public method combines the two methods above to generate the list of URLs with which to use with the scraper.
 
 ## Milestone 3: Retrieving data from each webpage
@@ -69,9 +69,9 @@ The `__get_soup(url:str)` method uses `requests` and `url` from a list of URLS (
 2. Extracting data from a row.  
 Rows include data from one cryptocurrency. For example all of the data associated with bitcoin on one day is contained within a row. The method `__get_crypto_rows(url_list:list, num_page:int)` uses `soup.find_all('tr', attrs={'class':'cmc-table-row'})` to extract all rows. In addition, the `__get_crypto_rows` method generates a list of the URLS accessed.
 3. Extracting individual data from each row.  
-Individual data from one row includes `Rank, Name, Market Capitalisation, Price, Circulating Supply, Ticker, 24 h change`. These data are extracted using the `__scrape_items_from_row()` method. These data were extracted using the `td` tag, for example: `(row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__rank'}).text.strip())` where `.strip` extracts only the text. The extracted text was typed appropriately, e.g. `str` for names and `float` for price. To clean the data, `re.sub("[^\d\.]", "", <variable>)` was used on float data to remove any non-numerical data. This method then appends the data to a instance list variable. A user-friendly tag can be generated using the `__generate_user_friendly_tag()` method, which generates a unique ID by combining the name for a particular record with the source url.
-4. Concatenating into a list of lists.  
-After all of the data across the desired number of webpages has been scraped, the result is a series of category lists with concatenated data e.g. name list. In order to match each record from a given list with its corresponding data (e.g. cryptocurrency name with price of the same day), the `__daily_record_concatenater()`' method combines each record category based on the index to create a list of all records e.g. `['Bitcoin https://coinmarketcap.com/historical/20130509/', 'https://coinmarketcap.com/historical/20130509/', 1, 'Bitcoin', 1254535361.61, 112.67, 11134600.0, 'BTC', 0.1]` which corresponds to `["ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"]` for one record. This concatenation is carried out for every index in each of the lists to return a list of lists.
+Individual data from one row includes `Rank, Name, Market Capitalisation, Price, Circulating Supply, Ticker, 24 h change`. These data are extracted using the `__scrape_items_from_row()` method. These data were extracted using the `td` tag, for example: `(row.find('td', attrs={'class': 'cmc-table__cell cmc-table__cell--sticky cmc-table__cell--sortable cmc-table__cell--left cmc-table__cell--sort-by__rank'}).text.strip())` where `.strip` extracts only the text. The extracted text was typed appropriately, e.g. `str` for names and `float` for price. To clean the data, `re.sub("[^\d\.]", "", <variable>)` was used on float data to remove any non-numerical data. This method then appends the data to an instance list variable. A user-friendly tag can be generated using the `__generate_user_friendly_tag()` method, which generates a unique ID by combining the name for a particular record with the source url.
+4. Concatenating data into a list of lists according to the day of record. 
+After all of the data across the desired number of webpages has been scraped, the result is a series of category lists with concatenated data e.g. name list. In order to match each record from a given list with its corresponding data (e.g. cryptocurrency name with price of the same day), the `__daily_record_concatenater()`' method combines each record category based on the index to create a list of all records e.g. `['Bitcoin https://coinmarketcap.com/historical/20130509/', 'https://coinmarketcap.com/historical/20130509/', 1, 'Bitcoin', 1254535361.61, 112.67, 11134600.0, 'BTC', 0.1]` which corresponds to `["ID", "source_url", "Rank", "Name", "Market Capitalisation", "Price", "Circulating Supply", "Ticker", "24 h change"]` for one record. This concatenation is carried out for every index in each list to return a list of lists.
 5. Bringing the private methods together.  
 The `get_crypto(url_list:list, num_pages=None)` method uses all of the crypto scraping and processing methods discussed above together under one method. The arguments which can be passed to this method include the url list (Milestone 2) and an optional argument which is the number of pages to scrape from the list (the default is all pages).
 6. Converting data to a dataframe.  
@@ -126,7 +126,7 @@ if crypto_name_and_image_single not in self.image_data_combined_list:
             if image not in self.image_list:
                 self.image_list.append(image)
                 ~~~
-In addition to prevent image rescraping using the above approach, a master .csv file was generated and updated every time data was scraped to keep an up-to-date record of all scraped data. Using the `get_outstanding_webpages(dataframe)` method, all possible URLS to be scraped are generated using the method `get_all_available_webpages()` which take today's date and the earliest possible date to create a dataframe of these dates. This is then compared to the 'source_url' column of the master .csv file, and any URLS for image data which is left outstanding to be scraped is given to the `save_images_from_multiple_webpages url_list:list, num_pages:int, path:str)` method. A further means of rescrape prevention was by checking that the image (uniquely name) was not already in the s3 bucket with the below code: 
+In addition to prevent image rescraping using the above approach, a master .csv file was generated and updated every time data was scraped to keep an up-to-date record of all scraped data (later this was downloaded from the RDS). Using the `get_outstanding_webpages(dataframe)` method, all possible URLS to be scraped are generated using the method `get_all_available_webpages()` which take today's date and the earliest possible date to create a dataframe of these dates. This is then compared to the 'source_url' column of the master .csv file, and any URLS for image data which is left outstanding to be scraped is given to the `save_images_from_multiple_webpages url_list:list, num_pages:int, path:str)` method. A further means of rescrape prevention was by checking that the image (uniquely name) was not already in the s3 bucket with the below code: 
 ~~~
 file_name = str(ntpath.basename(file_path))
         logging.info(f'{file_name} check') 
@@ -190,7 +190,7 @@ An Elastic Cloud Computing (EC2) instance was established on the AWS platform to
 	- HTTPS: Anywhere IPv4
    - SSH: My IP
 - An ssh key pair was generated to authenticate the connection. The priveleges were changed in the terminal to 'read only' using the syntax `chmod 400 <key.pem>` 
-- To connect to the EC2 instance through the CLI, `ssh -i /Users/asadiceccarelli/Documents/AiCore/aicorekey.pem ec2-user@<public-dns>` was used.
+- To connect to the EC2 instance through the CLI, `ssh -i /<path to key> ec2-user@<public-dns>` was used.
 - To add the directory of the scraper to the EC2 instance, `scp -i <path/ec2_key.pem> -r <directory path> /home/ec2-user` was run.
 - Docker was then installed to this EC2 instance
 ~~~
@@ -234,7 +234,7 @@ scrape_configs:
 wget https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-amd64.tar.gz
 tar xvfz node_exporter-1.1.2.linux-amd64.tar.gz
 rm node_exporter-1.1.2.linux-amd64.tar.gz~~~
-- ode exporter was run in the CLI with `./node_exporter-1.1.2.linux-amd64/node_exporter`  
+- Node exporter was run in the CLI with `./node_exporter-1.1.2.linux-amd64/node_exporter`  
 The prometheus container was run with the following command in the CLI: 
 ~~~
 	sudo docker run --rm -d \
