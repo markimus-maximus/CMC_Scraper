@@ -250,7 +250,7 @@ The prometheus container was run with the following command in the CLI:
 --name: name of the container.  
 -v: mounts the prometheus config in the container to your local config, allowing post-hoc configurations.  
 --config.file: the Docker container path for the prometheus.yml config file.  
-	
+~~~	
 - Grafana was used to aggregate prometheus metrics into an at-a-glance dashboard. Below is an example dashboard while the scraper was running in the EC2 instance.
 <img width="693" alt="image" src="https://user-images.githubusercontent.com/107410852/196400100-eff13994-6386-4506-bbe9-bfe63d0c46cb.png">
 
@@ -259,7 +259,7 @@ Continuous integration (CI) of software ensures that changes can be integrated f
 - Github Actions provides a tool to facilitate a CI/CD pipeline by integrating automated actions once a particular event has occurred. For example, this could be updating a server every time new code of a particular script has been uploaded to GitHub. Using Github Actions, a new Docker image was instructed to be generated and pushed to Dockerhub every time a new push occurred in the associated repository. 
 - To keep Docker hub credentials private, Github Secrets was utilised in which the appropriate information was stored. 
 - The .yaml file which configures the Github Action:
-~~~
+
 name: CI
 
 #triggers jobs on
